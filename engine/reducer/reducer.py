@@ -28,6 +28,15 @@ from engine.domain.events import (
 )
 from engine.domain.state import GameState, PlayerStatus, Street
 from engine.domain.types import Money, SeatId
+from engine.rules.legality import (
+    calculate_action_amount,
+    get_call_amount,
+    get_min_raise_amount,
+    is_betting_round_complete,
+    is_raise_reopening,
+    next_player_to_act,
+    validate_action,
+)
 
 
 def next_state(
@@ -135,6 +144,13 @@ def _handle_start_hand(
     )
 
     new_state = apply_event(state, event)
+    # Set initial to_act_seat (after BB, action starts with UTG)
+    # For now, set to first active seat after BB
+    if len(active_seats) > 2:
+        to_act_seat = active_seats[3 % len(active_seats)]
+    else:
+        to_act_seat = button_seat  # Heads-up: button acts first
+    new_state = new_state.model_copy(update={"to_act_seat": to_act_seat})
     return new_state, [event]
 
 
@@ -156,32 +172,41 @@ def _handle_reveal_seed(
 def _handle_act(
     state: GameState, command: Act, timestamp: float
 ) -> tuple[GameState, list[DomainEvent]]:
-    """Handle Act command."""
-    # Basic validation - detailed legality checks in Phase 3
-    player = state.get_player(command.seat_id)
-    if player is None:
-        raise ValueError(f"No player at seat {command.seat_id}")
-    if player.status != PlayerStatus.ACTIVE:
-        raise ValueError(f"Player at seat {command.seat_id} is not active")
+    """Handle Act command with full legality validation."""
+    # Validate action
+    is_valid, error_msg = validate_action(
+        state, command.seat_id, command.action_type, command.amount
+    )
+    if not is_valid:
+        raise ValueError(error_msg)
 
-    # For now, just emit a placeholder event
-    # Full implementation in Phase 3 with legality checks
-    if command.action_type == ActionType.FOLD:
-        chips_committed = 0
-    elif command.action_type == ActionType.CHECK:
-        chips_committed = 0
-    elif command.action_type == ActionType.CALL:
-        call_amount = state.current_bet - player.committed_street
-        chips_committed = min(call_amount, player.stack)
-    elif command.action_type in (ActionType.BET, ActionType.RAISE):
-        if command.amount is None:
-            raise ValueError(f"{command.action_type} requires amount")
-        chips_committed = min(command.amount, player.stack)
-    else:
-        raise ValueError(f"Unknown action type: {command.action_type}")
+    player = state.get_player(command.seat_id)
+    assert player is not None  # validate_action ensures this
+
+    # Calculate actual amount to commit
+    chips_committed = calculate_action_amount(
+        state, command.seat_id, command.action_type, command.amount
+    )
 
     new_stack = player.stack - chips_committed
 
+    # Calculate new min_raise and last_raiser_seat before creating event
+    new_min_raise = state.min_raise
+    new_last_raiser_seat = state.last_raiser_seat
+
+    if command.action_type == ActionType.BET:
+        # First bet of the street
+        new_min_raise = chips_committed  # Next raise must be at least this amount
+        new_last_raiser_seat = command.seat_id
+    elif command.action_type == ActionType.RAISE:
+        # Calculate raise increment
+        call_amount = get_call_amount(state, command.seat_id)
+        raise_increment = chips_committed - call_amount
+        if is_raise_reopening(state, chips_committed, new_stack):
+            new_min_raise = raise_increment
+            new_last_raiser_seat = command.seat_id
+
+    # Create event
     event = ActionApplied(
         timestamp=timestamp,
         seat_id=command.seat_id,
@@ -192,7 +217,29 @@ def _handle_act(
     )
 
     new_state = apply_event(state, event)
-    return new_state, [event]
+
+    # Update min_raise and last_raiser_seat if needed
+    if new_min_raise != state.min_raise or new_last_raiser_seat != state.last_raiser_seat:
+        new_state = new_state.model_copy(
+            update={
+                "min_raise": new_min_raise,
+                "last_raiser_seat": new_last_raiser_seat,
+            }
+        )
+
+    # Update to_act_seat to next player
+    next_seat = next_player_to_act(new_state)
+    if next_seat is not None:
+        new_state = new_state.model_copy(update={"to_act_seat": next_seat})
+
+    # Check if betting round is complete
+    events = [event]
+    if is_betting_round_complete(new_state):
+        events.append(
+            BettingRoundComplete(timestamp=timestamp, street=new_state.street)
+        )
+
+    return new_state, events
 
 
 def apply_event(state: GameState, event: DomainEvent) -> GameState:
@@ -311,9 +358,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
             if event.action_type in ("BET", "RAISE"):
                 new_current_bet = updated_player.committed_street
                 updates["current_bet"] = new_current_bet
-                updates["last_raiser_seat"] = event.seat_id
-                # Simplified min_raise calculation (will be improved in Phase 3)
-                updates["min_raise"] = new_current_bet
+                # min_raise and last_raiser_seat are handled in reducer
 
             return state.model_copy(update=updates)
         return state
