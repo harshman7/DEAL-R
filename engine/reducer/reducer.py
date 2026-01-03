@@ -28,6 +28,7 @@ from engine.domain.events import (
 )
 from engine.domain.state import GameState, PlayerStatus, Street
 from engine.domain.types import Money, SeatId
+from engine.eval.evaluator import rank_hands, split_pot
 from engine.rules.legality import (
     calculate_action_amount,
     get_call_amount,
@@ -37,6 +38,8 @@ from engine.rules.legality import (
     next_player_to_act,
     validate_action,
 )
+from engine.rules.sidepots import build_side_pots
+from engine.reducer.autoadvance import check_auto_advance
 
 
 def next_state(
@@ -69,7 +72,7 @@ def next_state(
     elif isinstance(command, RevealSeed):
         return _handle_reveal_seed(state, command, timestamp)
     elif isinstance(command, Act):
-        return _handle_act(state, command, timestamp)
+        return _handle_act(state, command, timestamp, deck)
     else:
         raise ValueError(f"Unknown command type: {type(command)}")
 
@@ -170,7 +173,7 @@ def _handle_reveal_seed(
 
 
 def _handle_act(
-    state: GameState, command: Act, timestamp: float
+    state: GameState, command: Act, timestamp: float, deck: Optional[object] = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle Act command with full legality validation."""
     # Validate action
@@ -238,6 +241,16 @@ def _handle_act(
         events.append(
             BettingRoundComplete(timestamp=timestamp, street=new_state.street)
         )
+
+    # Auto-advance: check if game should progress automatically
+    if deck is not None:
+        # Set timestamps for auto-advance events
+        advance_state, advance_events = check_auto_advance(new_state, deck)
+        # Update timestamps (events are frozen, recreate with correct timestamp)
+        from dataclasses import replace
+        advance_events = [replace(e, timestamp=timestamp) for e in advance_events]
+        new_state = advance_state
+        events.extend(advance_events)
 
     return new_state, events
 
