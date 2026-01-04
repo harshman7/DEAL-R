@@ -108,20 +108,24 @@ pre-commit install
 
 ## Project Status
 
-**Phase 0-1 Complete**: Core domain models and project structure
-- ✅ Project bootstrap (pyproject.toml, docker-compose)
-- ✅ Domain models (Card, Deck, PlayerState, GameState)
-- ✅ Unit tests for serialization and determinism
+**✅ All Phases Complete**: Full event-sourced poker engine with server
 
-**Next**: Phase 2 - Commands, events, and reducer skeleton
+- ✅ Phase 0-1: Core domain models and project structure
+- ✅ Phase 2: Commands, events, and reducer skeleton
+- ✅ Phase 3: Betting legality and round completion
+- ✅ Phase 4: Side pot calculation
+- ✅ Phase 5: Auto-advance, dealing, and showdown
+- ✅ Phase 6: Invariants and property-based tests
+- ✅ Phase 7: FastAPI server with event store and WebSocket
+- ✅ Phase 8: CLI tools and documentation
 
 ## Determinism & Event Sourcing
 
-The engine is designed for deterministic replay:
+The engine is designed for **deterministic replay**:
 
 1. **Seeded RNG**: Deck shuffling uses a committed seed
-2. **Event Log**: All state changes are events
-3. **Pure Reducer**: `next(state, command) -> (new_state, events[])`
+2. **Event Log**: All state changes are events (append-only)
+3. **Pure Reducer**: `next_state(state, command) -> (new_state, events[])`
 4. **Replay**: Applying events in order reproduces exact state
 
 Given:
@@ -130,6 +134,71 @@ Given:
 - Event log
 
 The final state is **guaranteed identical** across replays.
+
+### Demo: Deterministic Replay
+
+```python
+# Example: Replay a hand and verify determinism
+from engine.domain.state import GameState
+from engine.reducer.reducer import apply_event
+from server.persistence.event_store import EventStore
+
+# Load events from database
+event_store = EventStore("sqlite:///./poker.db")
+events = event_store.get_events("hand-123")
+
+# Replay events
+state = GameState(num_seats=9)
+for event in events:
+    state = apply_event(state, event)
+
+# State is identical to reducer-produced state
+print(f"Final street: {state.street}")
+print(f"Total pot: {sum(p.amount for p in state.pots)}")
+```
+
+### Demo: CLI Tools
+
+```bash
+# Replay a hand and get state hash
+python -m tools.replay_cli hand-123
+
+# Export hand history
+python -m tools.hh_export hand-123 --output hand_history.txt
+
+# Get state hash only (for verification)
+python -m tools.replay_cli hand-123 --hash-only
+```
+
+### Demo: WebSocket Real-Time Updates
+
+```python
+import asyncio
+import websockets
+import json
+
+async def watch_table(table_id: str):
+    uri = f"ws://localhost:8000/ws/tables/{table_id}"
+    async with websockets.connect(uri) as websocket:
+        # Receive initial state
+        initial = await websocket.recv()
+        print(f"Initial state: {json.loads(initial)}")
+        
+        # Listen for events
+        while True:
+            event = await websocket.recv()
+            print(f"Event: {json.loads(event)}")
+
+# Run: asyncio.run(watch_table("table-1"))
+```
+
+## Documentation
+
+- **[Architecture](docs/architecture.md)**: System design and event sourcing
+- **[State Machine](docs/state-machine.md)**: Game state transitions
+- **[Invariants](docs/invariants.md)**: Properties that must always hold
+- **[Threat Model](docs/threat-model.md)**: Security considerations
+- **[ADR 0001](docs/adr/0001-event-sourcing.md)**: Event sourcing decision record
 
 ## License
 
