@@ -7,6 +7,14 @@ from pydantic import BaseModel, Field
 from engine.domain.commands import ActionType
 
 
+class ErrorResponse(BaseModel):
+    """Error response schema."""
+
+    error: str = Field(description="Error message")
+    detail: Optional[str] = Field(default=None, description="Detailed error information")
+    request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
+
+
 class SitDownRequest(BaseModel):
     """Request to sit down at a table."""
 

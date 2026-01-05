@@ -20,6 +20,12 @@ dependencies = [
     "psycopg2-binary>=2.9.9",
     "websockets>=12.0",
     "python-multipart>=0.0.6",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-dotenv>=1.0.0",
+    "slowapi>=0.1.9",
+    "structlog>=23.2.0",
+    "prometheus-client>=0.19.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +38,10 @@ dev = [
     "black>=23.11.0",
     "mypy>=1.7.0",
     "pre-commit>=3.5.0",
+]
+client = [
+    "aiohttp>=3.9.0",
+    "websockets>=12.0",
 ]
 
 [tool.pytest.ini_options]

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEAL-R Poker Engine</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>DEAL-R</h1>
+            <div class="header-controls">
+                <div class="user-info" id="userInfo">
+                    <span id="usernameDisplay">Not logged in</span>
+                    <button id="logoutBtn" class="logout-btn" onclick="window.pokerUI.logout()">Logout</button>
+                </div>
+                <input type="text" id="tableId" placeholder="Table ID" value="table-1">
+                <button id="connectBtn">Connect to Table</button>
+                <button id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Connection Status -->
+            <div id="statusBar" class="status-bar">
+                <span id="connectionStatus" class="status disconnected">Disconnected</span>
+                <span id="currentStreet" class="street">WAITING</span>
+                <span id="currentBet" class="bet">Bet: 0</span>
+                <span id="playerCount" class="player-count">Players: 0</span>
+                <span id="tableInfo" class="table-info">Table: <span id="tableIdDisplay">-</span></span>
+            </div>
+            
+            <!-- Help Message -->
+            <div id="helpMessage" class="help-message">
+                <p><strong>Getting Started:</strong> Connect to a table, sit down at least 2 players, then start a hand.</p>
+            </div>
+
+            <!-- Poker Table -->
+            <div class="poker-table-container">
+                <div class="poker-table">
+                    <!-- Community Cards -->
+                    <div class="community-cards" id="communityCards">
+                        <div class="card-placeholder">Flop</div>
+                        <div class="card-placeholder">Turn</div>
+                        <div class="card-placeholder">River</div>
+                    </div>
+
+                    <!-- Pots -->
+                    <div class="pots" id="pots">
+                        <div class="pot">Main Pot: 0</div>
+                    </div>
+
+                    <!-- Seats (9 seats around the table) -->
+                    <div class="seats" id="seats">
+                        <!-- Seats will be dynamically generated -->
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="action-panel" id="actionPanel" style="display: none;">
+                        <h3>Action</h3>
+                        <div class="action-buttons">
+                            <button id="foldBtn" class="action-btn fold">Fold</button>
+                            <button id="checkBtn" class="action-btn check">Check</button>
+                            <button id="callBtn" class="action-btn call">Call</button>
+                            <div class="bet-controls">
+                                <input type="number" id="betAmount" placeholder="Amount" min="0">
+                                <button id="betBtn" class="action-btn bet">Bet</button>
+                                <button id="raiseBtn" class="action-btn raise">Raise</button>
+                            </div>
+                        </div>
+                        <div id="actionInfo" class="action-info"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Panel -->
+            <div class="control-panel">
+                <div class="panel-section">
+                    <h3>Quick Start</h3>
+                    <div class="step-indicator">
+                        <div class="step active" id="step1">
+                            <span class="step-number">1</span>
+                            <span class="step-text">Connect</span>
+                        </div>
+                        <div class="step" id="step2">
+                            <span class="step-number">2</span>
+                            <span class="step-text">Join Table</span>
+                        </div>
+                        <div class="step" id="step3">
+                            <span class="step-number">3</span>
+                            <span class="step-text">Start Hand</span>
+                        </div>
+                    </div>
+                    
+                    <div class="controls-group">
+                        <label>Join Table</label>
+                        <div class="player-list" id="playerList">
+                            <p class="empty">No players at table</p>
+                        </div>
+                        <div class="join-controls">
+                            <input type="number" id="stackInput" placeholder="Starting chips" min="100" value="1000" class="stack-input">
+                            <button id="joinTableBtn" class="join-btn">Join Table</button>
+                        </div>
+                        <div class="info-text" id="playerInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-tertiary);">
+                            Select your starting chips (default: 1000) and click "Join Table". You'll be automatically assigned a seat.
+                        </div>
+                    </div>
+                    
+                    <div class="controls-group">
+                        <label>Start Game</label>
+                        <button id="startHandBtn" class="start-btn" disabled>Start Hand</button>
+                        <div class="info-text" id="handInfo">Requires 2+ players</div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>History</h3>
+                    <div id="handHistory" class="hand-history">
+                        <p class="empty">No events yet</p>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3>Stats</h3>
+                    <div id="playerStats" class="stats">
+                        <p class="empty">Connect to see stats</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

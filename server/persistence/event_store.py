@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
 from engine.domain.events import DomainEvent
+from server.config import settings
 from server.persistence.models import Base, CommandModel, EventModel, HandSnapshotModel
 
 
@@ -63,6 +64,13 @@ class EventStore:
                 db.add(event_model)
 
             db.commit()
+            
+            # Create snapshot if interval reached
+            if settings.snapshot_interval > 0 and new_version % settings.snapshot_interval == 0:
+                # Note: State serialization should be done by caller
+                # This is just a placeholder - actual snapshot creation happens in TableService
+                pass
+            
             return new_version
 
         except IntegrityError as e:
@@ -93,6 +101,22 @@ class EventStore:
             return [self._deserialize_event(e) for e in events]
         finally:
             db.close()
+    
+    def get_events_with_snapshot(self, hand_id: str) -> tuple[Optional[int], list[DomainEvent]]:
+        """Get events for a hand, starting from snapshot if available.
+
+        Args:
+            hand_id: Hand identifier
+
+        Returns:
+            Tuple of (snapshot_version, events) where snapshot_version is None if no snapshot
+        """
+        snapshot = self.get_snapshot(hand_id)
+        if snapshot:
+            snapshot_version, _ = snapshot
+            events = self.get_events(hand_id, from_version=snapshot_version + 1)
+            return snapshot_version, events
+        return None, self.get_events(hand_id)
 
     def get_current_version(self, hand_id: str) -> int:
         """Get current version for a hand.
@@ -303,7 +327,16 @@ class EventStore:
                 continue
             # Handle special types
             if k == "street" and isinstance(v, str):
-                kwargs[k] = Street(v)
+                # Handle both "PREFLOP" and "Street.PREFLOP" formats
+                street_value = v.replace("Street.", "") if "Street." in v else v
+                try:
+                    kwargs[k] = Street(street_value)
+                except ValueError:
+                    print(f"[EventStore] Invalid street value: {v}, trying {street_value}")
+                    # Fallback: try to extract just the street name
+                    if "." in street_value:
+                        street_value = street_value.split(".")[-1]
+                    kwargs[k] = Street(street_value)
             elif k == "eligible_seats" and isinstance(v, list):
                 kwargs[k] = frozenset(v)
             elif k == "winners" and isinstance(v, dict):

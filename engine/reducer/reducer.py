@@ -68,7 +68,7 @@ def next_state(
     elif isinstance(command, StandUp):
         return _handle_stand_up(state, command, timestamp)
     elif isinstance(command, StartHand):
-        return _handle_start_hand(state, command, timestamp)
+        return _handle_start_hand(state, command, timestamp, deck=deck)
     elif isinstance(command, RevealSeed):
         return _handle_reveal_seed(state, command, timestamp)
     elif isinstance(command, Act):
@@ -115,21 +115,26 @@ def _handle_stand_up(
 
 
 def _handle_start_hand(
-    state: GameState, command: StartHand, timestamp: float
+    state: GameState, command: StartHand, timestamp: float, deck: Optional[object] = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle StartHand command."""
     if state.street != Street.WAITING:
         raise ValueError(f"Cannot start hand: current street is {state.street}")
-    if state.count_active_players() < 2:
-        raise ValueError("Need at least 2 active players to start hand")
+    
+    # Count seated players (any non-null seat)
+    seated_players = [p for p in state.seats if p is not None]
+    if len(seated_players) < 2:
+        raise ValueError("Need at least 2 seated players to start hand")
 
     # Find active players and assign positions
+    # Before hand starts, all seated players should be ACTIVE
     active_seats = [
-        i for i, player in enumerate(state.seats) if player is not None and player.status == PlayerStatus.ACTIVE
+        i for i, player in enumerate(state.seats) 
+        if player is not None and player.status == PlayerStatus.ACTIVE
     ]
 
     if len(active_seats) < 2:
-        raise ValueError("Need at least 2 active players")
+        raise ValueError("Need at least 2 active players to start hand")
 
     # Simple button rotation (for now, just use first active seat)
     # TODO: Proper button rotation in Phase 5
@@ -147,14 +152,42 @@ def _handle_start_hand(
     )
 
     new_state = apply_event(state, event)
+    events = [event]
+    
+    # SIMPLE: Deal hole cards directly to players if deck is provided
+    if deck is not None:
+        updated_seats = list(new_state.seats)
+        for seat_id in active_seats:
+            hole_cards = deck.deal(2)  # Deal 2 cards
+            player = updated_seats[seat_id]
+            if player is not None:
+                # Update player with hole cards
+                updated_seats[seat_id] = player.model_copy(update={"hole_cards": tuple(hole_cards)})
+                # Create event for logging
+                cards_event = CardsDealt(timestamp=timestamp, seat_id=seat_id)
+                events.append(cards_event)
+                print(f"[Reducer] Dealt cards to seat {seat_id}: {hole_cards[0]}, {hole_cards[1]}")
+        new_state = new_state.model_copy(update={"seats": updated_seats})
+        print(f"[Reducer] Dealt cards to {len(active_seats)} players")
+    
+    # Post blinds
+    from engine.domain.events import BlindPosted
+    sb_event = BlindPosted(timestamp=timestamp, seat_id=sb_seat, amount=state.small_blind, blind_type="SB")
+    new_state = apply_event(new_state, sb_event)
+    events.append(sb_event)
+    
+    bb_event = BlindPosted(timestamp=timestamp, seat_id=bb_seat, amount=state.big_blind, blind_type="BB")
+    new_state = apply_event(new_state, bb_event)
+    events.append(bb_event)
+    
     # Set initial to_act_seat (after BB, action starts with UTG)
-    # For now, set to first active seat after BB
     if len(active_seats) > 2:
         to_act_seat = active_seats[3 % len(active_seats)]
     else:
         to_act_seat = button_seat  # Heads-up: button acts first
     new_state = new_state.model_copy(update={"to_act_seat": to_act_seat})
-    return new_state, [event]
+    
+    return new_state, events
 
 
 def _handle_reveal_seed(
@@ -276,6 +309,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
     if isinstance(event, PlayerSatDown):
         player = PlayerState(
             seat_id=event.seat_id,
+            player_id=event.player_id,
             stack=event.stack,
             status=PlayerStatus.ACTIVE,
         )
@@ -324,7 +358,9 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
         return state.model_copy(update={"seed_reveal": event.seed_reveal})
 
     elif isinstance(event, CardsDealt):
-        # Cards are server-only, so we don't modify state here
+        # Store hole cards in player state
+        # Note: Cards are passed via the deck, not in the event (for security)
+        # The caller must update hole_cards after creating CardsDealt event
         # This event is mainly for logging/hand history
         return state
 

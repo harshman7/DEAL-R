@@ -52,6 +52,7 @@ class PlayerState(BaseModel):
     """
 
     seat_id: SeatId
+    player_id: Optional[str] = Field(default=None, description="Player identifier")
     stack: Money = Field(ge=0, description="Current chip stack")
     committed_street: Money = Field(
         default=0, ge=0, description="Chips committed this betting round"

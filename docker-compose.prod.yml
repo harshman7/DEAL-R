@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: poker
+      POSTGRES_PASSWORD: poker_password
+      POSTGRES_DB: poker_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U poker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://poker:poker_password@postgres:5432/poker_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      LOG_LEVEL: INFO
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    command: uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+
