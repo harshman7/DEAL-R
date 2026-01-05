@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEAL-R - Game</title>
+    <link rel="stylesheet" href="game-styles.css">
+</head>
+<body>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="top-left">
+            <h1>DEAL-R</h1>
+            <span class="table-name" id="tableName">table-1</span>
+        </div>
+        <div class="top-right">
+            <span class="player-name" id="playerName">player1</span>
+            <button class="btn-minimal" onclick="window.pokerUI.logout()">Logout</button>
+        </div>
+    </div>
+
+    <!-- Game Status Bar -->
+    <div class="status-bar">
+        <div class="status-item">
+            <span class="status-label">Street:</span>
+            <span class="status-value" id="street">PREFLOP</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Current Bet:</span>
+            <span class="status-value" id="currentBet">0</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Pot:</span>
+            <span class="status-value pot-amount" id="potAmount">$0</span>
+        </div>
+    </div>
+
+    <!-- Main Game Area -->
+    <div class="game-container">
+        <!-- Poker Table -->
+        <div class="table-wrapper">
+            <div class="poker-table" id="pokerTable">
+                <!-- Community Cards - Center of Table -->
+                <div class="community-cards-container" id="communityCards">
+                    <!-- Cards will be inserted here -->
+                </div>
+
+                <!-- Pot Display -->
+                <div class="pot-display" id="potDisplay">
+                    <div class="pot-label">Pot</div>
+                    <div class="pot-value" id="potValue">$0</div>
+                </div>
+
+                <!-- Player Seats - Around Table -->
+                <div class="seats-container" id="seatsContainer">
+                    <!-- Seats will be dynamically generated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Your Cards - Large, Prominent -->
+        <div class="your-cards-section" id="yourCardsSection" style="display: none;">
+            <div class="your-cards-label">Your Cards</div>
+            <div class="your-cards" id="yourCards">
+                <!-- Cards will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Panel - Fixed Bottom -->
+    <div class="action-panel" id="actionPanel" style="display: none;">
+        <div class="action-info" id="actionInfo">
+            <span id="actionText">Your turn to act</span>
+            <span class="action-details" id="actionDetails">Stack: 1000 · Bet: 0 · Call: 0</span>
+        </div>
+        <div class="action-buttons">
+            <button class="btn-action btn-fold" id="foldBtn">Fold</button>
+            <button class="btn-action btn-check" id="checkBtn">Check</button>
+            <button class="btn-action btn-call" id="callBtn">Call</button>
+            <div class="bet-controls">
+                <input type="number" id="betAmount" placeholder="Amount" min="0" class="bet-input">
+                <button class="btn-action btn-bet" id="betBtn">Bet</button>
+                <button class="btn-action btn-raise" id="raiseBtn">Raise</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game-view.js"></script>
+</body>
+</html>
+

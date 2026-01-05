@@ -17,7 +17,8 @@
                 </div>
                 <input type="text" id="tableId" placeholder="Table ID" value="table-1">
                 <button id="connectBtn">Connect to Table</button>
-                <button id="disconnectBtn" disabled>Disconnect</button>
+                    <button id="disconnectBtn" disabled>Disconnect</button>
+                    <button id="debugToggle" onclick="window.pokerUI.toggleDebug()" style="background: #333; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 11px;">Debug</button>
             </div>
         </header>
 
@@ -36,42 +37,62 @@
                 <p><strong>Getting Started:</strong> Connect to a table, sit down at least 2 players, then start a hand.</p>
             </div>
 
-            <!-- Poker Table -->
+            <!-- Poker Table - Clean Game View -->
             <div class="poker-table-container">
-                <div class="poker-table">
-                    <!-- Community Cards -->
+                <div class="poker-table" id="pokerTable">
+                    <!-- Community Cards - Center -->
                     <div class="community-cards" id="communityCards">
-                        <div class="card-placeholder">Flop</div>
-                        <div class="card-placeholder">Turn</div>
-                        <div class="card-placeholder">River</div>
+                        <!-- Cards will be inserted here -->
                     </div>
 
-                    <!-- Pots -->
-                    <div class="pots" id="pots">
-                        <div class="pot">Main Pot: 0</div>
+                    <!-- Pot Display - Above Community Cards -->
+                    <div class="pot-display" id="potDisplay" style="display: none;">
+                        <div class="pot-label">Pot</div>
+                        <div class="pot-value" id="potValue">$0</div>
+                    </div>
+                    
+                    <!-- Pots List (for side pots) -->
+                    <div class="pots" id="pots" style="display: none;">
+                        <!-- Side pots will be listed here -->
                     </div>
 
                     <!-- Seats (9 seats around the table) -->
                     <div class="seats" id="seats">
                         <!-- Seats will be dynamically generated -->
                     </div>
-
-                    <!-- Action Buttons -->
-                    <div class="action-panel" id="actionPanel" style="display: none;">
-                        <h3>Action</h3>
-                        <div class="action-buttons">
-                            <button id="foldBtn" class="action-btn fold">Fold</button>
-                            <button id="checkBtn" class="action-btn check">Check</button>
-                            <button id="callBtn" class="action-btn call">Call</button>
-                            <div class="bet-controls">
-                                <input type="number" id="betAmount" placeholder="Amount" min="0">
-                                <button id="betBtn" class="action-btn bet">Bet</button>
-                                <button id="raiseBtn" class="action-btn raise">Raise</button>
-                            </div>
-                        </div>
-                        <div id="actionInfo" class="action-info"></div>
+                </div>
+                
+                <!-- Your Cards - Large, Prominent -->
+                <div class="your-cards-container" id="yourCardsContainer" style="display: none;">
+                    <div class="your-cards-label">Your Cards</div>
+                    <div class="your-cards" id="yourCards">
+                        <!-- Cards will be inserted here -->
                     </div>
                 </div>
+            </div>
+            
+            <!-- Action Buttons - Fixed position at bottom -->
+            <div class="action-panel" id="actionPanel" style="display: none;">
+                <div id="actionInfo" class="action-info"></div>
+                <div class="action-buttons">
+                    <button id="foldBtn" class="action-btn fold">Fold</button>
+                    <button id="checkBtn" class="action-btn check">Check</button>
+                    <button id="callBtn" class="action-btn call">Call</button>
+                    <div class="bet-controls">
+                        <input type="number" id="betAmount" placeholder="Amount" min="0">
+                        <button id="betBtn" class="action-btn bet">Bet</button>
+                        <button id="raiseBtn" class="action-btn raise">Raise</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debug Panel -->
+            <div class="debug-panel" id="debugPanel" style="display: none; position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.9); color: #fff; padding: 12px; border-radius: 4px; max-width: 400px; max-height: 300px; overflow: auto; font-size: 11px; z-index: 10000; font-family: monospace;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <strong>Debug Panel</strong>
+                    <button onclick="document.getElementById('debugPanel').style.display='none'" style="background: #333; border: 1px solid #555; color: #fff; padding: 4px 8px; cursor: pointer; border-radius: 2px;">Close</button>
+                </div>
+                <div id="debugContent"></div>
             </div>
 
             <!-- Control Panel -->

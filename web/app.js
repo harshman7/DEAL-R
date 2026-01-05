@@ -8,8 +8,12 @@ class PokerUI {
         this.tableId = 'table-1';
         this.currentSeat = null;
         this.expectedVersion = 0;
-        this.baseUrl = 'http://localhost:8000';
-        this.wsUrl = 'ws://localhost:8000';
+        // SIMPLE: Use current window location for URLs
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        this.baseUrl = `${protocol}//${host}`;
+        this.wsUrl = `${wsProtocol}//${host}`;
         
         // Check if logged in
         if (!this.token || !this.playerId) {
@@ -45,6 +49,9 @@ class PokerUI {
         this.seatsContainer = document.getElementById('seats');
         this.communityCards = document.getElementById('communityCards');
         this.potsContainer = document.getElementById('pots');
+        this.potDisplay = document.getElementById('potDisplay');
+        this.yourCardsContainer = document.getElementById('yourCardsContainer');
+        this.yourCards = document.getElementById('yourCards');
         
         // Actions
         this.actionPanel = document.getElementById('actionPanel');
@@ -60,12 +67,61 @@ class PokerUI {
         this.stackInput = document.getElementById('stackInput');
         this.addPlayerBtn = document.getElementById('addPlayerBtn');
         this.playerList = document.getElementById('playerList');
+        this.controlPanel = document.querySelector('.control-panel');
         this.seatedPlayers = []; // Track seated players: [{seatId, playerId, stack}]
         this.lastState = null; // Store last state from WebSocket
         
         // History
         this.handHistory = document.getElementById('handHistory');
         this.playerStats = document.getElementById('playerStats');
+        
+        // Debug
+        this.debugPanel = document.getElementById('debugPanel');
+        this.debugContent = document.getElementById('debugContent');
+        this.debugEnabled = false;
+    }
+    
+    toggleDebug() {
+        this.debugEnabled = !this.debugEnabled;
+        if (this.debugPanel) {
+            this.debugPanel.style.display = this.debugEnabled ? 'block' : 'none';
+        }
+    }
+    
+    debugState(state) {
+        if (!this.debugEnabled || !this.debugContent) return;
+        
+        // Find cards for current player
+        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        const myCards = mySeat?.hole_cards || null;
+        
+        // Build debug info
+        const debugInfo = {
+            myPlayerId: this.playerId,
+            mySeat: mySeat ? {
+                seat_id: mySeat.seat_id,
+                player_id: mySeat.player_id,
+                has_cards: !!mySeat.hole_cards,
+                cards_count: mySeat.hole_cards?.length || 0,
+                cards: myCards
+            } : null,
+            allSeats: state.seats?.map((s, idx) => ({
+                seat: idx,
+                player_id: s?.player_id,
+                has_cards: !!s?.hole_cards,
+                cards: s?.hole_cards
+            })) || []
+        };
+        
+        this.debugContent.innerHTML = `
+            <div style="margin-bottom: 8px;"><strong>My Player ID:</strong> ${this.playerId || 'null'}</div>
+            <div style="margin-bottom: 8px;"><strong>My Seat:</strong> ${mySeat ? `Seat ${mySeat.seat_id} (${mySeat.player_id})` : 'Not seated'}</div>
+            <div style="margin-bottom: 8px;"><strong>My Cards:</strong> ${myCards ? JSON.stringify(myCards, null, 2) : 'None'}</div>
+            <div style="margin-bottom: 8px;"><strong>All Seats:</strong></div>
+            <pre style="font-size: 10px; overflow: auto; max-height: 150px;">${JSON.stringify(debugInfo.allSeats, null, 2)}</pre>
+            <div style="margin-top: 8px; font-size: 9px; color: #aaa;">Raw State:</div>
+            <pre style="font-size: 9px; overflow: auto; max-height: 100px; color: #aaa;">${JSON.stringify(state, null, 2).substring(0, 500)}...</pre>
+        `;
     }
 
     initializeSeats() {
@@ -101,11 +157,11 @@ class PokerUI {
         }
         this.startHandBtn.addEventListener('click', () => this.startHand());
         
-        this.foldBtn.addEventListener('click', () => this.act('FOLD'));
-        this.checkBtn.addEventListener('click', () => this.act('CHECK'));
-        this.callBtn.addEventListener('click', () => this.act('CALL'));
-        this.betBtn.addEventListener('click', () => this.act('BET'));
-        this.raiseBtn.addEventListener('click', () => this.act('RAISE'));
+        this.foldBtn.addEventListener('click', () => this.act('FOLD', 0));
+        this.checkBtn.addEventListener('click', () => this.act('CHECK', 0));
+        this.callBtn.addEventListener('click', () => this.call());
+        this.betBtn.addEventListener('click', () => this.bet());
+        this.raiseBtn.addEventListener('click', () => this.raise());
     }
 
     updateUserDisplay() {
@@ -227,20 +283,27 @@ class PokerUI {
     }
 
     handleMessage(data) {
-        console.log('WebSocket message received:', data.type, data);
+        console.log('[UI] Received message:', data.type);
         
         if (data.type === 'state') {
-            // Full state update - use it directly
-            const playerCount = data.data.seats ? data.data.seats.filter(s => s !== null).length : 0;
-            console.log(`[UI] Updating state from WebSocket. Players: ${playerCount}, Version: ${data.version || 'N/A'}`);
-            console.log('[UI] Seats data:', data.data.seats);
-            // Debug: Check for hole cards
-            data.data.seats?.forEach((seat, idx) => {
-                if (seat && seat.hole_cards) {
-                    console.log(`[UI] Seat ${idx} has hole_cards:`, seat.hole_cards, 'player_id:', seat.player_id, 'my playerId:', this.playerId);
-                }
-            });
             this.lastState = data.data; // Store state for later use
+            
+            // DEBUG: Log raw state and cards
+            this.debugState(data.data);
+            
+            // Log key state info for debugging
+            const mySeat = data.data.seats?.find(s => s && s.player_id === this.playerId);
+            console.log('[UI] State update:', {
+                street: data.data.street,
+                current_bet: data.data.current_bet,
+                to_act_seat: data.data.to_act_seat,
+                mySeat: mySeat ? {
+                    seat_id: mySeat.seat_id,
+                    has_cards: !!mySeat.hole_cards,
+                    cards: mySeat.hole_cards
+                } : null
+            });
+            
             this.updateTableState(data.data);
             // Update expected version from state
             if (data.version !== undefined) {
@@ -278,8 +341,12 @@ class PokerUI {
         console.log(`[UI] updateTableState: ${seatedCount} players seated`);
         
         // Update street and bet
-        this.currentStreet.textContent = state.street || 'WAITING';
-        this.currentBet.textContent = `Bet: ${state.current_bet || 0}`;
+        if (this.currentStreet) {
+            this.currentStreet.textContent = state.street || 'WAITING';
+        }
+        if (this.currentBet) {
+            this.currentBet.textContent = `Bet: ${state.current_bet || 0}`;
+        }
         
         // Count active players (in a hand) - for game logic
         const activePlayers = state.seats.filter(s => s && (s.status === 'ACTIVE' || s.status === 'ALL_IN')).length;
@@ -296,7 +363,6 @@ class PokerUI {
                 });
             }
         });
-        console.log(`[UI] Seated players list:`, this.seatedPlayers.map(p => `${p.playerId} (Seat ${p.seatId + 1})`));
         this.updatePlayerList();
         
         // Update seats
@@ -304,14 +370,21 @@ class PokerUI {
             this.updateSeat(index, seat);
         });
         
+        // Update "Your Cards" section (prominent display)
+        this.updateYourCards(state);
+        
         // Update community cards
         this.updateCommunityCards(state.community_cards || []);
         
         // Update pots
         this.updatePots(state.pots || []);
         
-        // Show/hide action panel
+        // Show/hide action panel and control panel based on game state
+        const isHandActive = state.street && state.street !== 'WAITING' && state.street !== 'COMPLETE';
+        
+        // Don't redirect - stay on main page and show actions
         this.updateActionPanel(state);
+        this.updateControlPanel(isHandActive);
         
         // Update UI guidance - use seatedCount (not activePlayers) for determining if we can start a hand
         this.updateGuidance(seatedCount, state);
@@ -343,53 +416,117 @@ class PokerUI {
         const playerName = seat.player_id || `Seat ${seatNumber}`;
         const shortName = playerName.length > 8 ? playerName.substring(0, 8) + '...' : playerName;
         
-        // Show hole cards if this is the current player
+        // SIMPLE: Show hole cards in seat (for debugging - show all cards)
         let holeCardsHtml = '';
-        if (seat.hole_cards && seat.hole_cards.length === 2) {
-            // SIMPLE: Show cards if player_id matches
-            const isMySeat = seat.player_id === this.playerId;
-            if (isMySeat) {
+        const hasCards = seat.hole_cards && seat.hole_cards.length === 2;
+        const isMySeat = seat.player_id === this.playerId;
+        
+        if (hasCards && (isMySeat || !this.playerId)) {
+            try {
+                const cardsHtml = seat.hole_cards.map(card => {
+                    const cardEl = this.createCardElement(card);
+                    return cardEl.outerHTML;
+                }).join('');
+                
                 holeCardsHtml = `
-                    <div class="hole-cards" style="display: flex; gap: 4px; margin-top: 4px;">
-                        ${seat.hole_cards.map(card => {
-                            const cardEl = this.createCardElement(card);
-                            return cardEl.outerHTML;
-                        }).join('')}
+                    <div class="hole-cards" style="display: flex; gap: 4px; margin-top: 4px; z-index: 10; position: relative;">
+                        ${cardsHtml}
                     </div>
                 `;
-                console.log(`[UI] ✓ Displaying hole cards for seat ${index} (player_id=${seat.player_id})`);
-            } else {
-                console.log(`[UI] Not showing cards for seat ${index}: player_id=${seat.player_id}, my playerId=${this.playerId}`);
+            } catch (e) {
+                console.error(`[UI] Error rendering cards for seat ${index}:`, e, seat.hole_cards);
             }
+        }
+        
+        // Show blind/commitment info
+        let commitmentInfo = '';
+        if (seat.committed_total > 0) {
+            commitmentInfo = `<div class="seat-status" style="background: var(--bg-tertiary); color: var(--text-secondary); margin-top: 4px; font-size: 9px; padding: 2px 4px; border-radius: 2px;">Bet: ${seat.committed_total}</div>`;
+        } else {
+            commitmentInfo = `<div class="seat-status ${seat.status}" style="font-size: 9px; margin-top: 4px;">${seat.status}</div>`;
         }
         
         seatEl.innerHTML = `
             <div class="seat-info">
                 <div class="seat-name">${shortName}</div>
                 <div class="seat-stack">${seat.stack}</div>
-                ${seat.committed_total > 0 ? `<div class="seat-status" style="background: var(--bg-tertiary); color: var(--text-secondary); margin-top: 4px; font-size: 9px;">${seat.committed_total}</div>` : `<div class="seat-status ${seat.status}">${seat.status}</div>`}
+                ${commitmentInfo}
                 ${holeCardsHtml}
             </div>
         `;
     }
 
+    updateYourCards(state) {
+        if (!this.yourCardsContainer || !this.yourCards) {
+            console.error('[UI] Your cards container elements not found');
+            return;
+        }
+        
+        // Find seat with our player_id that has cards
+        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        
+        console.log('[UI] updateYourCards:', {
+            playerId: this.playerId,
+            mySeat: mySeat ? {
+                seat_id: mySeat.seat_id,
+                has_cards: !!mySeat.hole_cards,
+                cards_length: mySeat.hole_cards?.length || 0,
+                cards: mySeat.hole_cards
+            } : null
+        });
+        
+        if (mySeat && mySeat.hole_cards && mySeat.hole_cards.length === 2) {
+            // Show the container
+            this.yourCardsContainer.style.display = 'block';
+            
+            // Clear and render cards
+            this.yourCards.innerHTML = '';
+            
+            mySeat.hole_cards.forEach((card, idx) => {
+                console.log(`[UI] Creating card ${idx}:`, card);
+                const cardEl = this.createCardElement(card);
+                if (cardEl) {
+                    // Check if card element has content
+                    if (cardEl.innerHTML && cardEl.innerHTML.trim()) {
+                        this.yourCards.appendChild(cardEl);
+                        console.log(`[UI] ✓ Added card ${idx} to "Your Cards":`, cardEl.outerHTML.substring(0, 100));
+                    } else {
+                        console.error(`[UI] ✗ Card element ${idx} has no content:`, card, cardEl);
+                    }
+                } else {
+                    console.error(`[UI] ✗ Failed to create card element ${idx}:`, card);
+                }
+            });
+            
+            console.log(`[UI] ✓ Updated "Your Cards" section with ${mySeat.hole_cards.length} cards`);
+        } else {
+            // Hide if no cards
+            this.yourCardsContainer.style.display = 'none';
+            this.yourCards.innerHTML = '';
+            
+            if (mySeat) {
+                console.log(`[UI] Player seat found but no cards. Has cards: ${!!mySeat.hole_cards}, Length: ${mySeat.hole_cards?.length || 0}, Cards:`, mySeat.hole_cards);
+            } else {
+                console.log(`[UI] Player seat not found. PlayerId: ${this.playerId}, All seats:`, state.seats?.map(s => s ? {seat_id: s.seat_id, player_id: s.player_id} : null));
+            }
+        }
+    }
+
     updateCommunityCards(cards) {
+        if (!this.communityCards) return;
+        
         this.communityCards.innerHTML = '';
         
         if (cards.length === 0) {
-            // Show placeholders
-            ['Flop', 'Turn', 'River'].forEach(label => {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'card-placeholder';
-                placeholder.textContent = label;
-                this.communityCards.appendChild(placeholder);
-            });
+            // Don't show placeholders - just empty
             return;
         }
         
         cards.forEach(card => {
             const cardEl = this.createCardElement(card);
-            this.communityCards.appendChild(cardEl);
+            if (cardEl) {
+                this.communityCards.appendChild(cardEl);
+            }
         });
     }
 
@@ -397,9 +534,55 @@ class PokerUI {
         const cardEl = document.createElement('div');
         cardEl.className = 'card';
         
-        // Handle both {rank: 2, suit: 0} and {rank: {value: 2}, suit: {value: 0}} formats
-        const rankValue = typeof card.rank === 'object' ? card.rank.value : card.rank;
-        const suitValue = typeof card.suit === 'object' ? card.suit.value : card.suit;
+        // Handle multiple formats:
+        // 1. {rank: 2, suit: 0} - from WebSocket
+        // 2. {rank: {value: 2}, suit: {value: 0}} - nested object
+        // 3. Card object with rank/suit enums
+        let rankValue, suitValue;
+        
+        if (typeof card === 'object' && card !== null) {
+            if (typeof card.rank === 'object' && card.rank !== null && 'value' in card.rank) {
+                rankValue = card.rank.value;
+            } else if (typeof card.rank === 'number') {
+                rankValue = card.rank;
+            } else if (card.rank && typeof card.rank === 'object' && 'name' in card.rank) {
+                // Enum object - get value
+                rankValue = card.rank.value || parseInt(card.rank.name);
+            } else {
+                rankValue = card.rank;
+            }
+            
+            if (typeof card.suit === 'object' && card.suit !== null && 'value' in card.suit) {
+                suitValue = card.suit.value;
+            } else if (typeof card.suit === 'number') {
+                suitValue = card.suit;
+            } else if (card.suit && typeof card.suit === 'object' && 'name' in card.suit) {
+                // Enum object - get value
+                suitValue = card.suit.value || parseInt(card.suit.name);
+            } else {
+                suitValue = card.suit;
+            }
+        } else {
+            console.error('[UI] Invalid card format:', card);
+            return cardEl; // Return empty card element
+        }
+        
+        // Validate values
+        if (typeof rankValue !== 'number' || isNaN(rankValue) || typeof suitValue !== 'number' || isNaN(suitValue)) {
+            console.error('[UI] Card values not valid numbers:', { rankValue, suitValue, card, cardType: typeof card });
+            return cardEl;
+        }
+        
+        // Validate ranges
+        if (rankValue < 2 || rankValue > 14) {
+            console.error('[UI] Invalid rank value:', rankValue);
+            return cardEl;
+        }
+        
+        if (suitValue < 0 || suitValue > 3) {
+            console.error('[UI] Invalid suit value:', suitValue);
+            return cardEl;
+        }
         
         const rank = this.getRankSymbol(rankValue);
         const suit = this.getSuitSymbol(suitValue);
@@ -411,6 +594,7 @@ class PokerUI {
             <div class="card-suit">${suit}</div>
         `;
         
+        console.log(`[UI] Created card element: ${rank}${suit} (rank=${rankValue}, suit=${suitValue})`);
         return cardEl;
     }
 
@@ -425,55 +609,193 @@ class PokerUI {
     }
 
     updatePots(pots) {
-        this.potsContainer.innerHTML = '';
-        pots.forEach((pot, index) => {
-            const potEl = document.createElement('div');
-            potEl.className = 'pot';
-            potEl.textContent = `${index === 0 ? 'Main' : `Side ${index}`} Pot: $${pot.amount}`;
-            this.potsContainer.appendChild(potEl);
-        });
+        // Calculate total pot from all pots
+        const totalPot = pots.reduce((sum, pot) => sum + (pot.amount || 0), 0);
         
-        if (pots.length === 0) {
-            const potEl = document.createElement('div');
-            potEl.className = 'pot';
-            potEl.textContent = 'Main Pot: $0';
-            this.potsContainer.appendChild(potEl);
+        // Update main pot display
+        const potDisplay = document.getElementById('potDisplay');
+        const potValueEl = document.getElementById('potValue');
+        if (potDisplay && potValueEl) {
+            if (totalPot > 0) {
+                potDisplay.style.display = 'block';
+                potValueEl.textContent = `$${totalPot}`;
+            } else {
+                potDisplay.style.display = 'none';
+            }
+        }
+        
+        // Update side pots list (if multiple pots)
+        if (this.potsContainer) {
+            this.potsContainer.innerHTML = '';
+            if (pots.length > 1) {
+                // Show side pots
+                this.potsContainer.style.display = 'block';
+                pots.forEach((pot, index) => {
+                    if (index > 0) { // Skip main pot (already shown)
+                        const potEl = document.createElement('div');
+                        potEl.className = 'pot';
+                        potEl.textContent = `Side Pot ${index}: $${pot.amount}`;
+                        this.potsContainer.appendChild(potEl);
+                    }
+                });
+            } else {
+                this.potsContainer.style.display = 'none';
+            }
+        }
+        
+        // Update status bar if it exists (new game view has potAmount)
+        const potAmountEl = document.getElementById('potAmount');
+        if (potAmountEl) {
+            potAmountEl.textContent = `$${totalPot}`;
+        }
+    }
+
+    updateControlPanel(isHandActive) {
+        // Hide control panel (Quick Start) when hand is active
+        if (this.controlPanel) {
+            this.controlPanel.style.display = isHandActive ? 'none' : 'block';
+        }
+        
+        // Add/remove hand-active class to main-content for layout changes
+        const mainContent = document.querySelector('.main-content');
+        if (mainContent) {
+            if (isHandActive) {
+                mainContent.classList.add('hand-active');
+            } else {
+                mainContent.classList.remove('hand-active');
+            }
+        }
+        
+        // Hide help message when hand is active
+        if (this.helpMessage) {
+            this.helpMessage.style.display = isHandActive ? 'none' : 'block';
         }
     }
 
     updateActionPanel(state) {
-        // Find if current player can act
-        const playerSeat = state.seats.findIndex(s => s && s.player_id === this.playerId);
-        
-        if (playerSeat >= 0) {
-            const seat = state.seats[playerSeat];
-            if (seat.status === 'ACTIVE') {
-                this.currentSeat = playerSeat;
-                this.actionPanel.style.display = 'block';
-                this.updateActionButtons(state, seat);
-                return;
-            }
+        if (!this.actionPanel) {
+            console.error('[UI] Action panel element not found');
+            return;
         }
         
-        this.actionPanel.style.display = 'none';
-        this.currentSeat = null;
+        // Find if current player can act
+        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        
+        console.log('[UI] updateActionPanel:', {
+            playerId: this.playerId,
+            to_act_seat: state.to_act_seat,
+            mySeat: mySeat ? {
+                seat_id: mySeat.seat_id,
+                status: mySeat.status
+            } : null,
+            street: state.street
+        });
+        
+        if (!mySeat) {
+            console.log('[UI] No seat found for player');
+            this.actionPanel.style.display = 'none';
+            this.currentSeat = null;
+            return;
+        }
+        
+        // Check if it's our turn to act
+        const isMyTurn = state.to_act_seat !== null && state.to_act_seat !== undefined && state.to_act_seat === mySeat.seat_id;
+        const canAct = mySeat.status === 'ACTIVE' && isMyTurn && state.street !== 'WAITING' && state.street !== 'COMPLETE';
+        
+        console.log('[UI] Action panel check:', {
+            isMyTurn,
+            status: mySeat.status,
+            street: state.street,
+            canAct
+        });
+        
+        if (canAct) {
+            this.currentSeat = mySeat.seat_id;
+            this.actionPanel.style.display = 'block';
+            this.updateActionButtons(state, mySeat);
+            console.log('[UI] ✓ Action panel displayed');
+        } else {
+            this.actionPanel.style.display = 'none';
+            this.currentSeat = null;
+            console.log('[UI] ✗ Action panel hidden');
+        }
     }
 
     updateActionButtons(state, seat) {
-        // Enable/disable buttons based on legal actions
-        const callAmount = state.current_bet - (seat.committed_street || 0);
+        if (!this.actionInfo || !this.foldBtn || !this.checkBtn || !this.callBtn || !this.betBtn || !this.raiseBtn) {
+            console.error('[UI] Action panel elements not found');
+            return;
+        }
         
-        // Minimal info display
+        // Calculate call amount (how much player needs to call)
+        const callAmount = Math.max(0, (state.current_bet || 0) - (seat.committed_street || 0));
+        
+        // Calculate min bet/raise amounts
+        const minBet = state.big_blind || 100;
+        // Min raise is the increment, not the total
+        const minRaiseIncrement = state.min_raise || state.big_blind || 100;
+        const maxBet = seat.stack;
+        
+        // Calculate min raise total (call + raise increment)
+        const minRaiseTotal = callAmount + minRaiseIncrement;
+        
+        // Update info display
         this.actionInfo.innerHTML = `
-            <div>Stack ${seat.stack} · Bet ${state.current_bet} · Call ${callAmount}</div>
+            <div style="font-size: 13px; margin-bottom: 8px;">
+                <strong>Stack:</strong> ${seat.stack} · 
+                <strong>Current Bet:</strong> ${state.current_bet || 0} · 
+                <strong>To Call:</strong> ${callAmount}
+            </div>
+            ${state.current_bet === 0 ? 
+                `<div style="font-size: 11px; color: var(--text-tertiary);">Min Bet: ${minBet}</div>` :
+                `<div style="font-size: 11px; color: var(--text-tertiary);">Min Raise: ${minRaiseIncrement} (total: ${minRaiseTotal})</div>`
+            }
         `;
         
-        // Enable buttons based on situation
-        this.foldBtn.disabled = state.current_bet === 0;
-        this.checkBtn.disabled = state.current_bet > 0;
-        this.callBtn.disabled = state.current_bet === 0 || callAmount === 0;
-        this.betBtn.disabled = state.current_bet > 0;
-        this.raiseBtn.disabled = state.current_bet === 0;
+        // Poker Rules:
+        // FOLD: Legal if there's a bet to call (callAmount > 0)
+        this.foldBtn.disabled = callAmount === 0;
+        
+        // CHECK: Legal only if no bet to call (callAmount == 0)
+        this.checkBtn.disabled = callAmount > 0;
+        
+        // CALL: Legal if there's a bet to call (callAmount > 0) and player has chips
+        this.callBtn.disabled = callAmount === 0 || seat.stack === 0;
+        this.callBtn.textContent = callAmount > 0 ? `Call ${Math.min(callAmount, seat.stack)}` : 'Call';
+        
+        // BET: Legal only if no current bet (current_bet == 0) and player has chips
+        this.betBtn.disabled = state.current_bet > 0 || seat.stack === 0;
+        
+        // RAISE: Legal if there's a current bet (current_bet > 0) and player has chips
+        this.raiseBtn.disabled = state.current_bet === 0 || seat.stack === 0;
+        
+        // Set bet amount input constraints
+        if (this.betAmountInput) {
+            if (state.current_bet === 0) {
+                // Betting: min is big blind, max is stack
+                this.betAmountInput.min = minBet;
+                this.betAmountInput.max = maxBet;
+                this.betAmountInput.placeholder = `Bet (${minBet}-${maxBet})`;
+                this.betAmountInput.value = minBet; // Default to min bet
+            } else {
+                // Raising: min is callAmount + minRaiseIncrement, max is stack
+                this.betAmountInput.min = minRaiseTotal;
+                this.betAmountInput.max = maxBet;
+                this.betAmountInput.placeholder = `Raise to (${minRaiseTotal}-${maxBet})`;
+                this.betAmountInput.value = minRaiseTotal; // Default to min raise
+            }
+        }
+        
+        console.log('[UI] Action buttons updated:', {
+            callAmount,
+            current_bet: state.current_bet,
+            stack: seat.stack,
+            fold_disabled: this.foldBtn.disabled,
+            check_disabled: this.checkBtn.disabled,
+            call_disabled: this.callBtn.disabled,
+            bet_disabled: this.betBtn.disabled,
+            raise_disabled: this.raiseBtn.disabled
+        });
     }
 
     findNextAvailableSeat(state) {
@@ -783,33 +1105,123 @@ class PokerUI {
         }
     }
 
-    async act(actionType) {
+    async act(actionType, amount = null) {
         if (this.currentSeat === null) {
             alert('You are not seated or it is not your turn');
             return;
         }
         
-        let amount = null;
-        if (actionType === 'BET' || actionType === 'RAISE') {
-            amount = parseInt(this.betAmountInput.value);
-            if (isNaN(amount) || amount <= 0) {
-                alert('Please enter a valid bet amount');
-                return;
-            }
+        if (!this.lastState) {
+            alert('Game state not available. Please wait...');
+            return;
+        }
+        
+        const mySeat = this.lastState.seats?.find(s => s && s.player_id === this.playerId);
+        if (!mySeat) {
+            alert('Player seat not found');
+            return;
         }
         
         const command = {
             type: 'act',
             data: {
-                seat_id: this.currentSeat,
+                seat_id: mySeat.seat_id,
                 action_type: actionType,
                 amount: amount
             },
-            idempotency_key: `act-${Date.now()}`,
+            idempotency_key: `act-${Date.now()}-${Math.random()}`,
             expected_version: this.expectedVersion
         };
         
+        console.log('[UI] Sending action:', command);
         this.sendCommand(command);
+    }
+    
+    call() {
+        if (!this.lastState) return;
+        
+        const mySeat = this.lastState.seats?.find(s => s && s.player_id === this.playerId);
+        if (!mySeat) return;
+        
+        const callAmount = Math.max(0, (this.lastState.current_bet || 0) - (mySeat.committed_street || 0));
+        if (callAmount === 0) {
+            alert('No bet to call');
+            return;
+        }
+        
+        this.act('CALL', null);
+    }
+    
+    bet() {
+        if (!this.betAmountInput) {
+            alert('Bet input not found');
+            return;
+        }
+        
+        const amount = parseInt(this.betAmountInput.value);
+        if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid bet amount');
+            return;
+        }
+        
+        if (!this.lastState) {
+            alert('Game state not available');
+            return;
+        }
+        
+        const mySeat = this.lastState.seats?.find(s => s && s.player_id === this.playerId);
+        if (!mySeat) return;
+        
+        if (amount > mySeat.stack) {
+            alert(`Bet amount (${amount}) exceeds your stack (${mySeat.stack})`);
+            return;
+        }
+        
+        const minBet = this.lastState.big_blind || 100;
+        if (amount < minBet) {
+            alert(`Bet must be at least ${minBet} (big blind)`);
+            return;
+        }
+        
+        this.act('BET', amount);
+    }
+    
+    raise() {
+        if (!this.betAmountInput) {
+            alert('Bet input not found');
+            return;
+        }
+        
+        const amount = parseInt(this.betAmountInput.value);
+        if (isNaN(amount) || amount <= 0) {
+            alert('Please enter a valid raise amount');
+            return;
+        }
+        
+        if (!this.lastState) {
+            alert('Game state not available');
+            return;
+        }
+        
+        const mySeat = this.lastState.seats?.find(s => s && s.player_id === this.playerId);
+        if (!mySeat) return;
+        
+        if (amount > mySeat.stack) {
+            alert(`Raise amount (${amount}) exceeds your stack (${mySeat.stack})`);
+            return;
+        }
+        
+        // Calculate call amount and min raise
+        const callAmount = Math.max(0, (this.lastState.current_bet || 0) - (mySeat.committed_street || 0));
+        const minRaiseIncrement = this.lastState.min_raise || (this.lastState.big_blind || 100);
+        const minRaiseTotal = callAmount + minRaiseIncrement;
+        
+        if (amount < minRaiseTotal) {
+            alert(`Raise must be at least ${minRaiseTotal} (call ${callAmount} + min raise ${minRaiseIncrement})`);
+            return;
+        }
+        
+        this.act('RAISE', amount);
     }
 
     sendCommand(command) {

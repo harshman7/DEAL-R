@@ -206,6 +206,15 @@ header h1 {
     gap: 32px;
 }
 
+/* Full-width layout when hand is active */
+.main-content.hand-active {
+    grid-template-columns: 1fr;
+}
+
+.main-content.hand-active .control-panel {
+    display: none;
+}
+
 /* Poker Table - Minimal Design */
 .poker-table-container {
     background: var(--bg-secondary);
@@ -213,43 +222,57 @@ header h1 {
     border-radius: 8px;
     padding: 40px;
     min-height: 600px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+/* When hand is active, adjust padding for better view */
+.main-content.hand-active .poker-table-container {
+    padding: 60px 40px 200px 40px; /* Extra bottom padding for action panel */
 }
 
 .poker-table {
     position: relative;
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
+    background: #0d4a0d;
+    border: 8px solid #8b4513;
     border-radius: 50%;
-    width: 100%;
-    aspect-ratio: 1;
-    max-width: 700px;
+    width: 700px;
+    height: 700px;
+    min-width: 500px;
+    min-height: 500px;
     margin: 0 auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 /* Community Cards - Clean */
-.community-cards {
+.community-cards,
+.community-cards-container {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     display: flex;
-    gap: 8px;
+    gap: 12px;
     z-index: 10;
 }
 
 .card {
-    width: 56px;
-    height: 78px;
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 6px;
+    width: 60px;
+    height: 84px;
+    background: #ffffff;
+    border: 2px solid var(--border);
+    border-radius: 8px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 6px;
-    font-weight: 600;
-    font-size: 11px;
+    padding: 8px;
+    font-weight: 700;
+    font-size: 12px;
     transition: transform 0.2s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .card:hover {
@@ -265,12 +288,13 @@ header h1 {
 }
 
 .card-rank {
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1;
+    font-weight: 700;
 }
 
 .card-suit {
-    font-size: 18px;
+    font-size: 20px;
     text-align: center;
     line-height: 1;
 }
@@ -287,13 +311,79 @@ header h1 {
     font-size: 9px;
     color: var(--text-tertiary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
 }
 
-/* Pots - Minimal */
-.pots {
+/* Your Cards - Prominent Display */
+.your-cards-container {
+    position: fixed;
+    bottom: 240px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1500;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.95);
+    padding: 20px 32px;
+    border-radius: 12px;
+    border: 2px solid var(--accent);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(10px);
+}
+
+.your-cards-label {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    font-weight: 600;
+}
+
+.your-cards {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+}
+
+.your-cards .card {
+    width: 80px;
+    height: 112px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+    border: 2px solid var(--accent);
+}
+
+/* Pot Display - Above Community Cards */
+.pot-display {
     position: absolute;
     top: 35%;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 5;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: 2px solid var(--accent);
+}
+
+.pot-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+.pot-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+/* Pots - Minimal (for side pots list) */
+.pots {
+    position: absolute;
+    top: 25%;
     left: 50%;
     transform: translateX(-50%);
     z-index: 5;
@@ -404,78 +494,138 @@ header h1 {
 .seat:nth-child(8) { top: 18%; left: 8%; }
 .seat:nth-child(9) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
 
-/* Action Panel - Minimal */
+/* Action Panel - Poker Site Style */
 .action-panel {
-    position: absolute;
+    position: fixed;
     bottom: 24px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    padding: 16px 24px;
-    border-radius: 6px;
-    z-index: 20;
-    min-width: 280px;
+    background: rgba(0, 0, 0, 0.95);
+    border: 2px solid var(--accent);
+    padding: 20px 32px;
+    border-radius: 12px;
+    z-index: 2000;
+    min-width: 400px;
+    max-width: 90%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
 }
 
-.action-panel h3 {
-    margin-bottom: 12px;
-    text-align: center;
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-secondary);
-}
+/* Removed h3 - using action-info instead */
 
 .action-buttons {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    flex-direction: row;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+}
+
+.action-info {
+    margin-bottom: 16px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
 }
 
 .action-btn {
-    padding: 10px 16px;
-    border: 1px solid var(--border);
+    padding: 14px 24px;
+    border: 2px solid var(--border);
     background: var(--bg-tertiary);
-    border-radius: 4px;
-    font-weight: 500;
-    font-size: 13px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s;
     color: var(--text-primary);
     font-family: inherit;
+    min-width: 100px;
+    flex: 1;
+    max-width: 150px;
+}
+
+.action-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .action-btn.fold {
     border-color: var(--warning);
     color: var(--warning);
-}
-
-.action-btn.fold:hover:not(:disabled) {
     background: rgba(255, 107, 107, 0.1);
 }
 
-.action-btn.check,
+.action-btn.fold:hover:not(:disabled) {
+    background: rgba(255, 107, 107, 0.2);
+    border-color: var(--warning);
+}
+
+.action-btn.check {
+    border-color: var(--text-secondary);
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.action-btn.check:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+}
+
 .action-btn.call {
     border-color: var(--success);
     color: var(--success);
+    background: rgba(74, 158, 255, 0.1);
 }
 
-.action-btn.check:hover:not(:disabled),
 .action-btn.call:hover:not(:disabled) {
-    background: rgba(74, 158, 255, 0.1);
+    background: rgba(74, 158, 255, 0.2);
+    border-color: var(--success);
 }
 
 .action-btn.bet,
 .action-btn.raise {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--success);
+    color: var(--success);
+    background: rgba(74, 158, 255, 0.15);
+    font-weight: 700;
 }
 
 .action-btn.bet:hover:not(:disabled),
 .action-btn.raise:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(74, 158, 255, 0.25);
+    border-color: var(--success);
+}
+
+.bet-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.bet-controls input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-size: 14px;
+    border-radius: 8px;
+    font-family: inherit;
+    min-width: 120px;
+}
+
+.bet-controls input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.bet-controls .action-btn {
+    flex: 0 0 auto;
+    min-width: 100px;
 }
 
 .action-btn:disabled {
@@ -485,23 +635,28 @@ header h1 {
 
 .bet-controls {
     display: flex;
-    gap: 6px;
+    gap: 8px;
+    margin-top: 12px;
+    align-items: center;
+    width: 100%;
 }
 
 .bet-controls input {
     flex: 1;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
+    padding: 12px;
+    border: 2px solid var(--border);
     background: var(--bg-primary);
-    border-radius: 4px;
     color: var(--text-primary);
-    font-size: 13px;
-    font-family: inherit;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    min-width: 100px;
 }
 
 .bet-controls input:focus {
     outline: none;
-    border-color: var(--text-secondary);
+    border-color: var(--accent);
 }
 
 .action-info {
@@ -963,7 +1118,10 @@ header h1 {
     }
 
     .poker-table {
-        max-width: 100%;
+        width: 500px;
+        height: 500px;
+        min-width: 400px;
+        min-height: 400px;
     }
 
     .seat {

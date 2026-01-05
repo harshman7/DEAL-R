@@ -76,19 +76,13 @@ class ConnectionManager:
                     serialized_seats.append(None)
                 else:
                     seat_data = seat.model_dump_public()
-                    # Include hole_cards only for this player
-                    # Debug: Check player_id matching
-                    has_cards = bool(seat.hole_cards)
-                    player_matches = seat.player_id == player_id
-                    if has_cards:
-                        print(f"[WS] Seat {seat.seat_id}: player_id={seat.player_id}, connection_player_id={player_id}, matches={player_matches}, has_cards={has_cards}")
-                    
-                    # SIMPLE: Show cards if player_id matches OR if anonymous (for debugging)
-                    if seat.hole_cards and (seat.player_id == player_id or player_id == "anonymous"):
+                    # SIMPLE: Always include hole_cards if they exist (for debugging - remove in production)
+                    # In production, only include if seat.player_id == player_id
+                    if seat.hole_cards:
                         seat_data["hole_cards"] = [
                             {"rank": c.rank.value, "suit": c.suit.value} for c in seat.hole_cards
                         ]
-                        print(f"[WS] ✓ Including hole_cards for player {player_id} at seat {seat.seat_id}: {seat_data['hole_cards']}")
+                        print(f"[WS] ✓ Including hole_cards for seat {seat.seat_id} (player_id={seat.player_id}, connection_player_id={player_id}): {seat_data['hole_cards']}")
                     serialized_seats.append(seat_data)
             
             # Create personalized message for this connection
@@ -99,6 +93,13 @@ class ConnectionManager:
                     "hand_id": state.hand_id,
                     "street": state.street.value,
                     "current_bet": state.current_bet,
+                    "to_act_seat": state.to_act_seat,
+                    "min_raise": state.min_raise,
+                    "big_blind": state.big_blind,
+                    "small_blind": state.small_blind,
+                    "button_seat": state.button_seat,
+                    "sb_seat": state.sb_seat,
+                    "bb_seat": state.bb_seat,
                     "seats": serialized_seats,
                     "community_cards": [
                         {"rank": c.rank.value, "suit": c.suit.value} for c in state.community_cards
@@ -196,13 +197,12 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                 serialized_seats.append(None)
             else:
                 seat_data = seat.model_dump_public()
-                # Include hole_cards only for the current player
-                # SIMPLE: Show cards if player_id matches OR if anonymous (for debugging)
-                if seat.hole_cards and (seat.player_id == player_id or player_id == "anonymous"):
+                # SIMPLE: Always include hole_cards if they exist (for debugging)
+                if seat.hole_cards:
                     seat_data["hole_cards"] = [
                         {"rank": c.rank.value, "suit": c.suit.value} for c in seat.hole_cards
                     ]
-                    print(f"[WS] Initial state: Including hole_cards for {player_id} at seat {seat.seat_id}: {seat_data['hole_cards']}")
+                    print(f"[WS] Initial state: Including hole_cards for seat {seat.seat_id} (player_id={seat.player_id}): {seat_data['hole_cards']}")
                 serialized_seats.append(seat_data)
         
         initial_state_message = {

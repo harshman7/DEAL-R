@@ -25,14 +25,19 @@ class TableService:
         self.table_id = table_id
         self.current_state: Optional[GameState] = None
         self.hand_id: Optional[str] = None
+        self._cleared_on_startup = False  # Track if we've cleared players on startup
 
     def get_state(self) -> GameState:
         """Get current table state.
         
-        Always reloads from events to ensure consistency across connections.
-        After reloading, re-deals cards deterministically if we have a seed.
+        SIMPLE: Use cached state if available, only reload when necessary.
+        On first load, clears all seated players (server restart cleanup).
         """
-        # Always reload from events to ensure consistency across connections
+        # SIMPLE: Return cached state if we have it
+        if self.current_state is not None:
+            return self.current_state
+        
+        # Only reload if we don't have cached state
         # Load pre-hand events (table-level stream) first
         table_stream_id = f"table-{self.table_id}"
         table_events = self.event_store.get_events(table_stream_id)
@@ -43,65 +48,71 @@ class TableService:
             if hand_events:
                 # Combine table events (SitDown, etc.) with hand events
                 all_events = (table_events or []) + hand_events
-                state = self._replay_events(all_events)
-                # Re-deal cards deterministically if we have a seed
-                state = self._redeal_cards(state, hand_events)
-                self.current_state = state
-                return self.current_state
-        
-        # No hand yet - just replay table events
-        if table_events:
-            # Replay table events to get current state
-            self.current_state = self._replay_events(table_events)
-            return self.current_state
+                self.current_state = self._replay_events(all_events)
         else:
-            # No events yet - create fresh state
-            if self.current_state is None:
+            # No hand yet - just replay table events
+            if table_events:
+                self.current_state = self._replay_events(table_events)
+            else:
+                # No events yet - create fresh state
                 self.current_state = GameState(num_seats=9)
+        
+        # SIMPLE: On first load, clear all seated players (server restart cleanup)
+        if not self._cleared_on_startup and self.current_state:
+            self._clear_seated_players()
+            self._cleared_on_startup = True
         
         return self.current_state
     
-    def _redeal_cards(self, state: GameState, events: list[DomainEvent]) -> GameState:
-        """Re-deal cards deterministically after replaying events.
+    def _clear_seated_players(self):
+        """Clear all seated players (called on server startup).
         
-        Since hole_cards aren't stored in events (for security), we need to
-        re-deal them deterministically from the seed when reloading state.
+        When server restarts, WebSocket connections are lost but events persist.
+        This clears all seated players so they need to rejoin.
         """
-        from engine.domain.events import HandStarted, CardsDealt
+        from engine.domain.events import PlayerStoodUp
+        from engine.domain.state import PlayerStatus
+        import time
         
-        # Find HandStarted event to get seed_commit
-        hand_started = None
-        for event in events:
-            if isinstance(event, HandStarted):
-                hand_started = event
-                break
+        # Find all seated players
+        seated_players = []
+        for seat in self.current_state.seats:
+            if seat is not None:
+                seated_players.append(seat.seat_id)
         
-        if not hand_started or not hand_started.seed_commit:
-            return state
+        if not seated_players:
+            return  # No players to clear
         
-        # Find all CardsDealt events to know which seats got cards
-        cards_dealt_seats = []
-        for event in events:
-            if isinstance(event, CardsDealt):
-                cards_dealt_seats.append(event.seat_id)
+        # Add PlayerStoodUp events for each seated player
+        table_stream_id = f"table-{self.table_id}"
+        current_version = self.event_store.get_current_version(table_stream_id)
         
-        if not cards_dealt_seats:
-            return state
+        stand_up_events = []
+        for seat_id in seated_players:
+            event = PlayerStoodUp(
+                timestamp=time.time(),
+                seat_id=seat_id
+            )
+            stand_up_events.append(event)
         
-        # Create deck from seed_commit (same logic as StartHand processing)
-        import hashlib
-        seed_int = int(hashlib.sha256(hand_started.seed_commit.encode()).hexdigest(), 16) % (2**31)
-        deck = Deck.create_shuffled(seed_int)
-        
-        # Re-deal cards to the same seats in the same order
-        updated_seats = list(state.seats)
-        for seat_id in cards_dealt_seats:
-            if seat_id < len(updated_seats) and updated_seats[seat_id] is not None:
-                hole_cards = deck.deal(2)
-                player = updated_seats[seat_id]
-                updated_seats[seat_id] = player.model_copy(update={"hole_cards": tuple(hole_cards)})
-        
-        return state.model_copy(update={"seats": updated_seats})
+        if stand_up_events:
+            # Append events to clear players
+            try:
+                self.event_store.append_events(table_stream_id, current_version, stand_up_events)
+                # Replay events to update state
+                table_events = self.event_store.get_events(table_stream_id)
+                if self.hand_id:
+                    hand_events = self.event_store.get_events(self.hand_id)
+                    all_events = (table_events or []) + (hand_events or [])
+                    self.current_state = self._replay_events(all_events)
+                else:
+                    self.current_state = self._replay_events(table_events)
+                print(f"[TableService] Cleared {len(seated_players)} seated players from table {self.table_id} on startup")
+            except Exception as e:
+                print(f"[TableService] Warning: Could not clear seated players: {e}")
+                # If clearing fails, just set seats to None directly
+                updated_seats = [None] * len(self.current_state.seats)
+                self.current_state = self.current_state.model_copy(update={"seats": updated_seats})
 
     def process_command(
         self, command: Command, idempotency_key: str, expected_version: int
@@ -171,24 +182,21 @@ class TableService:
                 )
             else:
                 # Store pre-hand events (like SitDown) in table stream
-                # This allows multiple connections to see the same state
                 new_version = self.event_store.append_events(
                     event_stream_id, expected_version, events
                 )
 
-        # Record command for idempotency (store result events)
+        # Record command for idempotency
         command_data = json.dumps({"type": type(command).__name__, "data": command.__dict__})
         events_json = json.dumps([self._serialize_event(e) for e in events])
         event_stream_id = self.hand_id or f"table-{self.table_id}"
         self.event_store.record_command(
             idempotency_key, event_stream_id, type(command).__name__, command_data
         )
-        # Update command with result events
         self._update_command_result(idempotency_key, events_json)
 
-        # Don't cache state - always reload from events for consistency
-        # This ensures all connections see the same state
-        self.current_state = None  # Force reload on next get_state()
+        # SIMPLE: Update cached state directly (no reload needed)
+        self.current_state = new_state
 
         return new_state, events, new_version
 
