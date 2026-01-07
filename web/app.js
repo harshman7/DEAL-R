@@ -28,32 +28,22 @@ class PokerUI {
     }
 
     initializeElements() {
-        // Connection
-        this.tableIdInput = document.getElementById('tableId');
-        this.connectBtn = document.getElementById('connectBtn');
-        this.disconnectBtn = document.getElementById('disconnectBtn');
-        this.connectionStatus = document.getElementById('connectionStatus');
-        this.usernameDisplay = document.getElementById('usernameDisplay');
+        // Top bar
+        this.tableNameEl = document.getElementById('tableName');
         
-        // Status
-        this.currentStreet = document.getElementById('currentStreet');
-        this.currentBet = document.getElementById('currentBet');
-        this.playerCount = document.getElementById('playerCount');
-        this.tableIdDisplay = document.getElementById('tableIdDisplay');
-        this.helpMessage = document.getElementById('helpMessage');
-        this.playerInfo = document.getElementById('playerInfo');
-        this.handInfo = document.getElementById('handInfo');
-        this.startHandBtn = document.getElementById('startHandBtn');
+        // Players row
+        this.playersRow = document.getElementById('playersRow');
         
-        // Table
-        this.seatsContainer = document.getElementById('seats');
+        // Community area
         this.communityCards = document.getElementById('communityCards');
-        this.potsContainer = document.getElementById('pots');
         this.potDisplay = document.getElementById('potDisplay');
-        this.yourCardsContainer = document.getElementById('yourCardsContainer');
-        this.yourCards = document.getElementById('yourCards');
+        this.potValueEl = document.getElementById('potValue');
         
-        // Actions
+        // Action center
+        this.actionCenter = document.getElementById('actionCenter');
+        this.waitBtn = document.getElementById('waitBtn');
+        
+        // Action panel
         this.actionPanel = document.getElementById('actionPanel');
         this.foldBtn = document.getElementById('foldBtn');
         this.checkBtn = document.getElementById('checkBtn');
@@ -63,22 +53,19 @@ class PokerUI {
         this.betAmountInput = document.getElementById('betAmount');
         this.actionInfo = document.getElementById('actionInfo');
         
-        // Controls
-        this.stackInput = document.getElementById('stackInput');
-        this.addPlayerBtn = document.getElementById('addPlayerBtn');
-        this.playerList = document.getElementById('playerList');
-        this.controlPanel = document.querySelector('.control-panel');
-        this.seatedPlayers = []; // Track seated players: [{seatId, playerId, stack}]
-        this.lastState = null; // Store last state from WebSocket
-        
-        // History
-        this.handHistory = document.getElementById('handHistory');
-        this.playerStats = document.getElementById('playerStats');
+        // Player cards (bottom)
+        this.yourCards = document.getElementById('yourCards');
+        this.playerAvatar = document.getElementById('playerAvatar');
+        this.playerStack = document.getElementById('playerStack');
         
         // Debug
         this.debugPanel = document.getElementById('debugPanel');
         this.debugContent = document.getElementById('debugContent');
         this.debugEnabled = false;
+        
+        // State
+        this.lastState = null;
+        this.seatedPlayers = [];
     }
     
     toggleDebug() {
@@ -142,32 +129,47 @@ class PokerUI {
     }
 
     attachEventListeners() {
-        this.connectBtn.addEventListener('click', () => this.connect());
-        this.disconnectBtn.addEventListener('click', () => this.disconnect());
-        
-        const joinTableBtn = document.getElementById('joinTableBtn');
-        if (joinTableBtn) {
-            joinTableBtn.addEventListener('click', () => this.joinTable());
+        // Action buttons
+        if (this.foldBtn) {
+            this.foldBtn.addEventListener('click', () => this.act('FOLD', 0));
+        }
+        if (this.checkBtn) {
+            this.checkBtn.addEventListener('click', () => this.act('CHECK', 0));
+        }
+        if (this.callBtn) {
+            this.callBtn.addEventListener('click', () => this.call());
+        }
+        if (this.betBtn) {
+            this.betBtn.addEventListener('click', () => this.bet());
+        }
+        if (this.raiseBtn) {
+            this.raiseBtn.addEventListener('click', () => this.raise());
         }
         
-        // Also support old button ID for backward compatibility
-        const sitDownBtn = document.getElementById('sitDownBtn');
-        if (sitDownBtn) {
-            sitDownBtn.addEventListener('click', () => this.joinTable());
-        }
-        this.startHandBtn.addEventListener('click', () => this.startHand());
-        
-        this.foldBtn.addEventListener('click', () => this.act('FOLD', 0));
-        this.checkBtn.addEventListener('click', () => this.act('CHECK', 0));
-        this.callBtn.addEventListener('click', () => this.call());
-        this.betBtn.addEventListener('click', () => this.bet());
-        this.raiseBtn.addEventListener('click', () => this.raise());
+        // Auto-connect on load
+        this.connect();
     }
 
     updateUserDisplay() {
-        if (this.username) {
-            this.usernameDisplay.textContent = this.username;
+        if (this.tableNameEl) {
+            this.tableNameEl.textContent = this.tableId;
         }
+        if (this.playerAvatar) {
+            // Set avatar emoji based on username
+            const avatar = this.getAvatarEmoji(this.username || this.playerId);
+            this.playerAvatar.textContent = avatar;
+        }
+    }
+    
+    getAvatarEmoji(name) {
+        if (!name) return '👤';
+        // Simple hash-based avatar selection
+        const avatars = ['👤', '😊', '😎', '🤓', '😄', '🙂', '😃', '😁'];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return avatars[Math.abs(hash) % avatars.length];
     }
 
     logout() {
@@ -293,15 +295,29 @@ class PokerUI {
             
             // Log key state info for debugging
             const mySeat = data.data.seats?.find(s => s && s.player_id === this.playerId);
+            const allSeatsWithCards = data.data.seats?.filter(s => s && s.hole_cards && s.hole_cards.length === 2) || [];
+            
             console.log('[UI] State update:', {
                 street: data.data.street,
                 current_bet: data.data.current_bet,
                 to_act_seat: data.data.to_act_seat,
+                playerId: this.playerId,
                 mySeat: mySeat ? {
                     seat_id: mySeat.seat_id,
+                    player_id: mySeat.player_id,
                     has_cards: !!mySeat.hole_cards,
                     cards: mySeat.hole_cards
-                } : null
+                } : null,
+                allSeatsWithCards: allSeatsWithCards.map(s => ({
+                    seat_id: s.seat_id,
+                    player_id: s.player_id,
+                    cards: s.hole_cards
+                })),
+                allSeats: data.data.seats?.map(s => s ? {
+                    seat_id: s.seat_id,
+                    player_id: s.player_id,
+                    status: s.status
+                } : null)
             });
             
             this.updateTableState(data.data);
@@ -330,66 +346,132 @@ class PokerUI {
     }
 
     updateTableState(state) {
-        // Ensure seats array exists and has 9 elements
-        if (!state.seats || state.seats.length < 9) {
-            const seats = state.seats || [];
-            state.seats = [...seats, ...Array(9 - seats.length).fill(null)];
-        }
-        
-        // Count seated players (any seat that's not null)
-        const seatedCount = state.seats.filter(s => s !== null).length;
-        console.log(`[UI] updateTableState: ${seatedCount} players seated`);
-        
-        // Update street and bet
-        if (this.currentStreet) {
-            this.currentStreet.textContent = state.street || 'WAITING';
-        }
-        if (this.currentBet) {
-            this.currentBet.textContent = `Bet: ${state.current_bet || 0}`;
-        }
-        
-        // Count active players (in a hand) - for game logic
-        const activePlayers = state.seats.filter(s => s && (s.status === 'ACTIVE' || s.status === 'ALL_IN')).length;
-        this.playerCount.textContent = `Players: ${seatedCount}`;
-        
-        // Sync seated players list with state
-        this.seatedPlayers = [];
-        state.seats.forEach((seat, index) => {
-            if (seat) {
-                this.seatedPlayers.push({
-                    seatId: index,
-                    playerId: seat.player_id || `player${index + 1}`, // Display-friendly ID
-                    stack: seat.stack
-                });
-            }
-        });
-        this.updatePlayerList();
-        
-        // Update seats
-        state.seats.forEach((seat, index) => {
-            this.updateSeat(index, seat);
+        console.log('[UI] updateTableState:', {
+            street: state.street,
+            current_bet: state.current_bet,
+            to_act_seat: state.to_act_seat,
+            seats_count: state.seats?.length || 0,
+            playerId: this.playerId
         });
         
-        // Update "Your Cards" section (prominent display)
-        this.updateYourCards(state);
+        // Update players row (top)
+        this.updatePlayersRow(state);
         
         // Update community cards
         this.updateCommunityCards(state.community_cards || []);
         
-        // Update pots
-        this.updatePots(state.pots || []);
+        // Update pot display
+        this.updatePotDisplay(state.pots || []);
         
-        // Show/hide action panel and control panel based on game state
+        // Update your cards (bottom)
+        this.updateYourCards(state);
+        
+        // Update player stack (bottom)
+        this.updatePlayerStack(state);
+        
+        // Update action panel/center
+        this.updateActions(state);
+    }
+    
+    updatePlayersRow(state) {
+        if (!this.playersRow) return;
+        
+        this.playersRow.innerHTML = '';
+        
+        const seats = state.seats || [];
+        const activeSeats = seats.filter(s => s !== null);
+        
+        activeSeats.forEach((seat, idx) => {
+            const playerItem = document.createElement('div');
+            playerItem.className = 'player-item';
+            
+            const isToAct = state.to_act_seat === seat.seat_id;
+            const isActive = seat.status === 'ACTIVE' || seat.status === 'ALL_IN';
+            
+            const avatar = this.getAvatarEmoji(seat.player_id);
+            const shortName = (seat.player_id || `Player${seat.seat_id + 1}`).replace('player_', '').substring(0, 10);
+            
+            let betBadge = '';
+            if (seat.committed_total > 0) {
+                betBadge = `<div class="player-bet">${seat.committed_total}</div>`;
+            }
+            
+            playerItem.innerHTML = `
+                ${betBadge}
+                <div class="player-avatar ${isActive ? 'active' : ''} ${isToAct ? 'to-act' : ''}">${avatar}</div>
+                <div class="player-name">${shortName}</div>
+                <div class="player-score">${seat.stack}</div>
+            `;
+            
+            this.playersRow.appendChild(playerItem);
+        });
+    }
+    
+    updatePotDisplay(pots) {
+        const totalPot = pots.reduce((sum, pot) => sum + (pot.amount || 0), 0);
+        
+        if (this.potValueEl) {
+            this.potValueEl.textContent = `$${totalPot}`;
+        }
+        
+        if (this.potDisplay) {
+            this.potDisplay.style.display = totalPot > 0 ? 'flex' : 'none';
+        }
+    }
+    
+    updatePlayerStack(state) {
+        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        if (mySeat && this.playerStack) {
+            this.playerStack.textContent = mySeat.stack.toLocaleString();
+        }
+    }
+    
+    updateActions(state) {
+        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
         const isHandActive = state.street && state.street !== 'WAITING' && state.street !== 'COMPLETE';
         
-        // Don't redirect - stay on main page and show actions
-        this.updateActionPanel(state);
-        this.updateControlPanel(isHandActive);
+        if (!mySeat) {
+            // Not seated - show nothing
+            if (this.actionPanel) this.actionPanel.style.display = 'none';
+            if (this.actionCenter) this.actionCenter.style.display = 'none';
+            return;
+        }
         
-        // Update UI guidance - use seatedCount (not activePlayers) for determining if we can start a hand
-        this.updateGuidance(seatedCount, state);
+        if (!isHandActive) {
+            // Not in a hand - show wait button
+            if (this.actionPanel) this.actionPanel.style.display = 'none';
+            if (this.actionCenter) {
+                this.actionCenter.style.display = 'flex';
+                if (this.waitBtn) {
+                    this.waitBtn.textContent = 'Wait for the next hand';
+                    this.waitBtn.disabled = true;
+                }
+            }
+            return;
+        }
         
-        console.log('State updated. Seated players:', this.seatedPlayers.length);
+        // In a hand - check if it's our turn
+        const isMyTurn = state.to_act_seat !== null && state.to_act_seat === mySeat.seat_id;
+        const canAct = mySeat.status === 'ACTIVE' && isMyTurn;
+        
+        if (canAct) {
+            // Show action panel
+            if (this.actionPanel) {
+                this.actionPanel.style.display = 'block';
+                this.updateActionButtons(state, mySeat);
+            }
+            if (this.actionCenter) this.actionCenter.style.display = 'none';
+        } else {
+            // Not our turn - show wait button
+            if (this.actionPanel) this.actionPanel.style.display = 'none';
+            if (this.actionCenter) {
+                this.actionCenter.style.display = 'flex';
+                if (this.waitBtn) {
+                    this.waitBtn.textContent = 'Wait for the next hand';
+                    this.waitBtn.disabled = true;
+                }
+            }
+        }
     }
 
     updateSeat(index, seat) {
@@ -457,57 +539,36 @@ class PokerUI {
     }
 
     updateYourCards(state) {
-        if (!this.yourCardsContainer || !this.yourCards) {
-            console.error('[UI] Your cards container elements not found');
-            return;
-        }
+        if (!this.yourCards) return;
         
         // Find seat with our player_id that has cards
-        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        let mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
         
-        console.log('[UI] updateYourCards:', {
-            playerId: this.playerId,
-            mySeat: mySeat ? {
-                seat_id: mySeat.seat_id,
-                has_cards: !!mySeat.hole_cards,
-                cards_length: mySeat.hole_cards?.length || 0,
-                cards: mySeat.hole_cards
-            } : null
-        });
+        // Fallback: show first seat with cards if no match
+        if (!mySeat) {
+            const seatsWithCards = state.seats?.filter(s => s && s.hole_cards && s.hole_cards.length === 2);
+            if (seatsWithCards && seatsWithCards.length > 0) {
+                console.warn('[UI] No exact player_id match, showing first seat with cards');
+                mySeat = seatsWithCards[0];
+            }
+        }
+        
+        this.yourCards.innerHTML = '';
         
         if (mySeat && mySeat.hole_cards && mySeat.hole_cards.length === 2) {
-            // Show the container
-            this.yourCardsContainer.style.display = 'block';
-            
-            // Clear and render cards
-            this.yourCards.innerHTML = '';
-            
-            mySeat.hole_cards.forEach((card, idx) => {
-                console.log(`[UI] Creating card ${idx}:`, card);
+            // Show cards
+            mySeat.hole_cards.forEach((card) => {
                 const cardEl = this.createCardElement(card);
-                if (cardEl) {
-                    // Check if card element has content
-                    if (cardEl.innerHTML && cardEl.innerHTML.trim()) {
-                        this.yourCards.appendChild(cardEl);
-                        console.log(`[UI] ✓ Added card ${idx} to "Your Cards":`, cardEl.outerHTML.substring(0, 100));
-                    } else {
-                        console.error(`[UI] ✗ Card element ${idx} has no content:`, card, cardEl);
-                    }
-                } else {
-                    console.error(`[UI] ✗ Failed to create card element ${idx}:`, card);
+                if (cardEl && cardEl.innerHTML && cardEl.innerHTML.trim()) {
+                    this.yourCards.appendChild(cardEl);
                 }
             });
-            
-            console.log(`[UI] ✓ Updated "Your Cards" section with ${mySeat.hole_cards.length} cards`);
         } else {
-            // Hide if no cards
-            this.yourCardsContainer.style.display = 'none';
-            this.yourCards.innerHTML = '';
-            
-            if (mySeat) {
-                console.log(`[UI] Player seat found but no cards. Has cards: ${!!mySeat.hole_cards}, Length: ${mySeat.hole_cards?.length || 0}, Cards:`, mySeat.hole_cards);
-            } else {
-                console.log(`[UI] Player seat not found. PlayerId: ${this.playerId}, All seats:`, state.seats?.map(s => s ? {seat_id: s.seat_id, player_id: s.player_id} : null));
+            // Show face-down cards (2 placeholders)
+            for (let i = 0; i < 2; i++) {
+                const cardBack = document.createElement('div');
+                cardBack.className = 'card-back';
+                this.yourCards.appendChild(cardBack);
             }
         }
     }
@@ -517,17 +578,23 @@ class PokerUI {
         
         this.communityCards.innerHTML = '';
         
-        if (cards.length === 0) {
-            // Don't show placeholders - just empty
-            return;
-        }
-        
-        cards.forEach(card => {
-            const cardEl = this.createCardElement(card);
-            if (cardEl) {
-                this.communityCards.appendChild(cardEl);
+        // Show up to 5 community cards (flop, turn, river)
+        // Show face-down placeholders for cards not yet dealt
+        const maxCards = 5;
+        for (let i = 0; i < maxCards; i++) {
+            if (i < cards.length) {
+                // Show actual card
+                const cardEl = this.createCardElement(cards[i]);
+                if (cardEl) {
+                    this.communityCards.appendChild(cardEl);
+                }
+            } else {
+                // Show face-down placeholder
+                const cardBack = document.createElement('div');
+                cardBack.className = 'card-back';
+                this.communityCards.appendChild(cardBack);
             }
-        });
+        }
     }
 
     createCardElement(card) {
@@ -569,18 +636,22 @@ class PokerUI {
         
         // Validate values
         if (typeof rankValue !== 'number' || isNaN(rankValue) || typeof suitValue !== 'number' || isNaN(suitValue)) {
-            console.error('[UI] Card values not valid numbers:', { rankValue, suitValue, card, cardType: typeof card });
+            console.error('[UI] Card values not valid numbers:', { rankValue, suitValue, card, cardType: typeof card, rawCard: JSON.stringify(card) });
+            // Try to create a placeholder card anyway
+            cardEl.innerHTML = `<div class="card-rank">?</div><div class="card-suit">?</div>`;
             return cardEl;
         }
         
         // Validate ranges
         if (rankValue < 2 || rankValue > 14) {
-            console.error('[UI] Invalid rank value:', rankValue);
+            console.error('[UI] Invalid rank value:', rankValue, 'card:', card);
+            cardEl.innerHTML = `<div class="card-rank">?</div><div class="card-suit">?</div>`;
             return cardEl;
         }
         
         if (suitValue < 0 || suitValue > 3) {
-            console.error('[UI] Invalid suit value:', suitValue);
+            console.error('[UI] Invalid suit value:', suitValue, 'card:', card);
+            cardEl.innerHTML = `<div class="card-rank">?</div><div class="card-suit">?</div>`;
             return cardEl;
         }
         
@@ -594,7 +665,7 @@ class PokerUI {
             <div class="card-suit">${suit}</div>
         `;
         
-        console.log(`[UI] Created card element: ${rank}${suit} (rank=${rankValue}, suit=${suitValue})`);
+        console.log(`[UI] ✓ Created card element: ${rank}${suit} (rank=${rankValue}, suit=${suitValue})`);
         return cardEl;
     }
 
@@ -679,16 +750,32 @@ class PokerUI {
         }
         
         // Find if current player can act
-        const mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        let mySeat = state.seats?.find(s => s && s.player_id === this.playerId);
+        
+        // If no exact match, try to find any active seat (for debugging)
+        if (!mySeat) {
+            mySeat = state.seats?.find(s => s && s.status === 'ACTIVE');
+            if (mySeat) {
+                console.warn('[UI] ⚠️ No exact player_id match, using first active seat for debugging');
+                console.warn('[UI] Expected playerId:', this.playerId);
+                console.warn('[UI] Available player_ids:', state.seats?.map(s => s?.player_id).filter(Boolean));
+            }
+        }
         
         console.log('[UI] updateActionPanel:', {
             playerId: this.playerId,
             to_act_seat: state.to_act_seat,
+            street: state.street,
+            allSeats: state.seats?.map(s => s ? {
+                seat_id: s.seat_id,
+                player_id: s.player_id,
+                status: s.status
+            } : null),
             mySeat: mySeat ? {
                 seat_id: mySeat.seat_id,
+                player_id: mySeat.player_id,
                 status: mySeat.status
-            } : null,
-            street: state.street
+            } : null
         });
         
         if (!mySeat) {
@@ -706,7 +793,9 @@ class PokerUI {
             isMyTurn,
             status: mySeat.status,
             street: state.street,
-            canAct
+            canAct,
+            to_act_seat: state.to_act_seat,
+            mySeatId: mySeat.seat_id
         });
         
         if (canAct) {
@@ -717,7 +806,11 @@ class PokerUI {
         } else {
             this.actionPanel.style.display = 'none';
             this.currentSeat = null;
-            console.log('[UI] ✗ Action panel hidden');
+            console.log('[UI] ✗ Action panel hidden - reasons:', {
+                isMyTurn,
+                statusActive: mySeat.status === 'ACTIVE',
+                streetValid: state.street !== 'WAITING' && state.street !== 'COMPLETE'
+            });
         }
     }
 

@@ -3,156 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DEAL-R Poker Engine</title>
+    <title>DEAL-R Poker</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>DEAL-R</h1>
-            <div class="header-controls">
-                <div class="user-info" id="userInfo">
-                    <span id="usernameDisplay">Not logged in</span>
-                    <button id="logoutBtn" class="logout-btn" onclick="window.pokerUI.logout()">Logout</button>
-                </div>
-                <input type="text" id="tableId" placeholder="Table ID" value="table-1">
-                <button id="connectBtn">Connect to Table</button>
-                    <button id="disconnectBtn" disabled>Disconnect</button>
-                    <button id="debugToggle" onclick="window.pokerUI.toggleDebug()" style="background: #333; border: 1px solid #555; color: #fff; padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 11px;">Debug</button>
-            </div>
-        </header>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <button class="back-btn" onclick="window.pokerUI.logout()">←</button>
+        <div class="top-title">DEAL-R</div>
+        <div class="top-actions">
+            <span class="table-name" id="tableName">table-1</span>
+        </div>
+    </div>
 
-        <div class="main-content">
-            <!-- Connection Status -->
-            <div id="statusBar" class="status-bar">
-                <span id="connectionStatus" class="status disconnected">Disconnected</span>
-                <span id="currentStreet" class="street">WAITING</span>
-                <span id="currentBet" class="bet">Bet: 0</span>
-                <span id="playerCount" class="player-count">Players: 0</span>
-                <span id="tableInfo" class="table-info">Table: <span id="tableIdDisplay">-</span></span>
-            </div>
-            
-            <!-- Help Message -->
-            <div id="helpMessage" class="help-message">
-                <p><strong>Getting Started:</strong> Connect to a table, sit down at least 2 players, then start a hand.</p>
-            </div>
+    <!-- Players Row -->
+    <div class="players-row" id="playersRow">
+        <!-- Players will be dynamically added here -->
+    </div>
 
-            <!-- Poker Table - Clean Game View -->
-            <div class="poker-table-container">
-                <div class="poker-table" id="pokerTable">
-                    <!-- Community Cards - Center -->
-                    <div class="community-cards" id="communityCards">
-                        <!-- Cards will be inserted here -->
-                    </div>
+    <!-- Community Cards Area -->
+    <div class="community-area">
+        <div class="community-cards" id="communityCards">
+            <!-- Cards will be inserted here -->
+        </div>
+        <div class="pot-display" id="potDisplay">
+            <span class="pot-label">Pot</span>
+            <span class="pot-value" id="potValue">$0</span>
+        </div>
+    </div>
 
-                    <!-- Pot Display - Above Community Cards -->
-                    <div class="pot-display" id="potDisplay" style="display: none;">
-                        <div class="pot-label">Pot</div>
-                        <div class="pot-value" id="potValue">$0</div>
-                    </div>
-                    
-                    <!-- Pots List (for side pots) -->
-                    <div class="pots" id="pots" style="display: none;">
-                        <!-- Side pots will be listed here -->
-                    </div>
+    <!-- Action Button (Center) -->
+    <div class="action-center" id="actionCenter" style="display: none;">
+        <button class="action-center-btn" id="waitBtn">Wait for the next hand</button>
+    </div>
 
-                    <!-- Seats (9 seats around the table) -->
-                    <div class="seats" id="seats">
-                        <!-- Seats will be dynamically generated -->
-                    </div>
-                </div>
-                
-                <!-- Your Cards - Large, Prominent -->
-                <div class="your-cards-container" id="yourCardsContainer" style="display: none;">
-                    <div class="your-cards-label">Your Cards</div>
-                    <div class="your-cards" id="yourCards">
-                        <!-- Cards will be inserted here -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Action Buttons - Fixed position at bottom -->
-            <div class="action-panel" id="actionPanel" style="display: none;">
-                <div id="actionInfo" class="action-info"></div>
-                <div class="action-buttons">
-                    <button id="foldBtn" class="action-btn fold">Fold</button>
-                    <button id="checkBtn" class="action-btn check">Check</button>
-                    <button id="callBtn" class="action-btn call">Call</button>
-                    <div class="bet-controls">
-                        <input type="number" id="betAmount" placeholder="Amount" min="0">
-                        <button id="betBtn" class="action-btn bet">Bet</button>
-                        <button id="raiseBtn" class="action-btn raise">Raise</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Debug Panel -->
-            <div class="debug-panel" id="debugPanel" style="display: none; position: fixed; bottom: 10px; right: 10px; background: rgba(0,0,0,0.9); color: #fff; padding: 12px; border-radius: 4px; max-width: 400px; max-height: 300px; overflow: auto; font-size: 11px; z-index: 10000; font-family: monospace;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <strong>Debug Panel</strong>
-                    <button onclick="document.getElementById('debugPanel').style.display='none'" style="background: #333; border: 1px solid #555; color: #fff; padding: 4px 8px; cursor: pointer; border-radius: 2px;">Close</button>
-                </div>
-                <div id="debugContent"></div>
-            </div>
-
-            <!-- Control Panel -->
-            <div class="control-panel">
-                <div class="panel-section">
-                    <h3>Quick Start</h3>
-                    <div class="step-indicator">
-                        <div class="step active" id="step1">
-                            <span class="step-number">1</span>
-                            <span class="step-text">Connect</span>
-                        </div>
-                        <div class="step" id="step2">
-                            <span class="step-number">2</span>
-                            <span class="step-text">Join Table</span>
-                        </div>
-                        <div class="step" id="step3">
-                            <span class="step-number">3</span>
-                            <span class="step-text">Start Hand</span>
-                        </div>
-                    </div>
-                    
-                    <div class="controls-group">
-                        <label>Join Table</label>
-                        <div class="player-list" id="playerList">
-                            <p class="empty">No players at table</p>
-                        </div>
-                        <div class="join-controls">
-                            <input type="number" id="stackInput" placeholder="Starting chips" min="100" value="1000" class="stack-input">
-                            <button id="joinTableBtn" class="join-btn">Join Table</button>
-                        </div>
-                        <div class="info-text" id="playerInfo" style="margin-top: 8px; font-size: 11px; color: var(--text-tertiary);">
-                            Select your starting chips (default: 1000) and click "Join Table". You'll be automatically assigned a seat.
-                        </div>
-                    </div>
-                    
-                    <div class="controls-group">
-                        <label>Start Game</label>
-                        <button id="startHandBtn" class="start-btn" disabled>Start Hand</button>
-                        <div class="info-text" id="handInfo">Requires 2+ players</div>
-                    </div>
-                </div>
-
-                <div class="panel-section">
-                    <h3>History</h3>
-                    <div id="handHistory" class="hand-history">
-                        <p class="empty">No events yet</p>
-                    </div>
-                </div>
-
-                <div class="panel-section">
-                    <h3>Stats</h3>
-                    <div id="playerStats" class="stats">
-                        <p class="empty">Connect to see stats</p>
-                    </div>
-                </div>
+    <!-- Action Panel (Bottom) -->
+    <div class="action-panel" id="actionPanel" style="display: none;">
+        <div class="action-info" id="actionInfo"></div>
+        <div class="action-buttons">
+            <button id="foldBtn" class="action-btn fold">Fold</button>
+            <button id="checkBtn" class="action-btn check">Check</button>
+            <button id="callBtn" class="action-btn call">Call</button>
+            <div class="bet-controls">
+                <input type="number" id="betAmount" placeholder="Amount" min="0">
+                <button id="betBtn" class="action-btn bet">Bet</button>
+                <button id="raiseBtn" class="action-btn raise">Raise</button>
             </div>
         </div>
+    </div>
+
+    <!-- Your Cards (Bottom) -->
+    <div class="player-cards-area">
+        <div class="your-cards" id="yourCards">
+            <!-- Cards will be inserted here -->
+        </div>
+        <div class="player-info-bottom">
+            <div class="player-avatar" id="playerAvatar">👤</div>
+            <div class="player-stack" id="playerStack">1,000</div>
+        </div>
+    </div>
+
+    <!-- Debug Panel -->
+    <div class="debug-panel" id="debugPanel" style="display: none;">
+        <div class="debug-header">
+            <strong>Debug</strong>
+            <button onclick="document.getElementById('debugPanel').style.display='none'">×</button>
+        </div>
+        <div id="debugContent"></div>
     </div>
 
     <script src="app.js"></script>
 </body>
 </html>
-
