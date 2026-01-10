@@ -1,13 +1,12 @@
 """Authentication API endpoints."""
 
+import json
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import Session, sessionmaker
 
-from server.config import settings
 from server.services.auth import (
     create_access_token,
     decode_access_token,
@@ -18,23 +17,35 @@ from server.services.auth import (
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 security = HTTPBearer()
 
-# Simple in-memory user store (in production, use proper database)
-Base = declarative_base()
+# Persistent storage file (JSON for simplicity)
+USERS_DB_FILE = Path("users.json")
 
 
-class User(Base):
-    """User model for authentication."""
+def load_users_db() -> dict[str, dict]:
+    """Load users from JSON file."""
+    if USERS_DB_FILE.exists():
+        try:
+            with open(USERS_DB_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[Auth] Error loading users database: {e}")
+            return {}
+    return {}
 
-    __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    email = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+def save_users_db(users_db: dict[str, dict]) -> None:
+    """Save users to JSON file."""
+    try:
+        with open(USERS_DB_FILE, "w") as f:
+            json.dump(users_db, f, indent=2)
+    except Exception as e:
+        print(f"[Auth] Error saving users database: {e}")
 
 
-# In-memory storage for demo (replace with database in production)
-users_db: dict[str, dict] = {}
+# Load users on startup
+users_db: dict[str, dict] = load_users_db()
+if users_db:
+    print(f"[Auth] Loaded {len(users_db)} users from database")
 
 
 class RegisterRequest(BaseModel):
@@ -75,18 +86,29 @@ async def register(request: RegisterRequest):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be longer than 72 characters"
         )
     
-    if request.username in users_db:
+    # Load current users to check for duplicates
+    current_users = load_users_db()
+    if request.username in current_users:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists"
         )
 
     # Create user
     hashed_password = get_password_hash(request.password)
-    users_db[request.username] = {
+    print(f"[Auth] Registering user '{request.username}' with hashed password: {hashed_password[:20]}...")
+    current_users[request.username] = {
         "username": request.username,
         "email": request.email,
         "hashed_password": hashed_password,
+        "chips": 1000,  # Default starting chips
+        "avatar": "👤",  # Default avatar
+        "last_roulette_date": None,  # Track daily roulette
     }
+    save_users_db(current_users)
+    # Update global users_db
+    users_db.clear()
+    users_db.update(current_users)
+    print(f"[Auth] User '{request.username}' registered successfully. Total users: {len(current_users)}")
 
     # Generate token
     player_id = f"player_{request.username}"
@@ -106,17 +128,29 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be longer than 72 characters"
         )
     
-    user = users_db.get(request.username)
+    # Load current users (in case file was modified)
+    current_users = load_users_db()
+    # Update global users_db
+    users_db.clear()
+    users_db.update(current_users)
+    
+    user = current_users.get(request.username)
     if not user:
+        print(f"[Auth] Login failed: user '{request.username}' not found in database")
+        print(f"[Auth] Available users: {list(current_users.keys())}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password"
         )
 
-    if not verify_password(request.password, user["hashed_password"]):
+    print(f"[Auth] Verifying password for user '{request.username}'")
+    password_valid = verify_password(request.password, user["hashed_password"])
+    if not password_valid:
+        print(f"[Auth] Login failed: password verification failed for user '{request.username}'")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password"
         )
 
+    print(f"[Auth] Login successful for user '{request.username}'")
     # Generate token
     player_id = f"player_{request.username}"
     token = create_access_token(data={"sub": player_id, "username": request.username})

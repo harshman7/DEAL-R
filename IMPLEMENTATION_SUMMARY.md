@@ -133,7 +133,7 @@ This document summarizes all the enhancements implemented beyond the original 8 
 ## 📦 Dependencies Added
 
 - `python-jose[cryptography]` - JWT handling
-- `passlib[bcrypt]` - Password hashing
+- `bcrypt` - Password hashing
 - `python-dotenv` - Environment variables
 - `slowapi` - Rate limiting
 - `structlog` - Structured logging

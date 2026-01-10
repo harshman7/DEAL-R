@@ -7,7 +7,7 @@
 pip install -e ".[dev,client]"
 
 # Or install individually:
-pip install python-jose[cryptography] passlib[bcrypt] python-dotenv slowapi structlog prometheus-client aiohttp
+pip install python-jose[cryptography] bcrypt python-dotenv slowapi structlog prometheus-client aiohttp
 ```
 
 ## 2. Configure Environment

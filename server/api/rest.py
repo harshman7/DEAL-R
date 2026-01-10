@@ -179,3 +179,110 @@ async def get_hand_summary(
     analytics = AnalyticsService(event_store)
     return analytics.get_hand_summary(hand_id)
 
+
+@router.get("/players/me", summary="Get player info", description="Get current player information including chips balance.")
+async def get_player_info(player_id: str = Depends(get_current_player)):
+    """Get current player information."""
+    from server.api.auth import load_users_db
+    
+    users_db = load_users_db()
+    username = player_id.replace("player_", "")
+    user = users_db.get(username)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    return {
+        "player_id": player_id,
+        "username": user.get("username", username),
+        "chips": user.get("chips", 1000),
+        "avatar": user.get("avatar", "👤"),
+        "last_roulette_date": user.get("last_roulette_date", None)
+    }
+
+
+@router.post("/players/update-chips", summary="Update player chips", description="Update player chip balance.")
+async def update_player_chips(
+    amount: int,
+    player_id: str = Depends(get_current_player),
+):
+    """Update player chips (can be negative for losses)."""
+    from server.api.auth import load_users_db, save_users_db
+    
+    users_db = load_users_db()
+    username = player_id.replace("player_", "")
+    user = users_db.get(username)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    current_chips = user.get("chips", 1000)
+    new_chips = max(0, current_chips + amount)
+    user["chips"] = new_chips
+    
+    save_users_db(users_db)
+    
+    return {"player_id": player_id, "chips": new_chips}
+
+
+@router.get("/tables/find-or-create", summary="Find or create table", description="Find available table or create new one if all full (max 6 players per table).")
+async def find_or_create_table(player_id: str = Depends(get_current_player)):
+    """Find available table with < 6 players, or create new one."""
+    manager = get_table_manager()
+    
+    # Check existing tables for availability
+    for table_id in manager.list_tables():
+        table_service = manager.get_table(table_id)
+        state = table_service.get_state()
+        
+        # Count seated players
+        seated_count = sum(1 for seat in state.seats if seat is not None)
+        
+        if seated_count < 6:
+            return {"table_id": table_id, "action": "joined"}
+    
+    # All tables full, create new one
+    new_table_num = len(manager.list_tables()) + 1
+    new_table_id = f"table-{new_table_num}"
+    manager.get_table(new_table_id)
+    
+    return {"table_id": new_table_id, "action": "created"}
+
+
+@router.post("/roulette/spin", summary="Spin roulette", description="Spin the daily roulette wheel for chips reward (once per day).")
+async def spin_roulette(player_id: str = Depends(get_current_player)):
+    """Spin the roulette wheel for daily reward."""
+    from datetime import date
+    from server.api.auth import load_users_db, save_users_db
+    import random
+    
+    users_db = load_users_db()
+    username = player_id.replace("player_", "")
+    user = users_db.get(username)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="Player not found")
+    
+    # Check if already used today
+    today = date.today().isoformat()
+    last_roulette_date = user.get("last_roulette_date")
+    
+    if last_roulette_date == today:
+        raise HTTPException(status_code=400, detail="You have already spun today. Come back tomorrow!")
+    
+    # Generate reward (50-500 chips)
+    reward = random.randint(50, 500)
+    
+    # Update user
+    current_chips = user.get("chips", 1000)
+    user["chips"] = current_chips + reward
+    user["last_roulette_date"] = today
+    
+    save_users_db(users_db)
+    
+    return {
+        "reward": reward,
+        "new_chips": user["chips"],
+        "last_roulette_date": today
+    }
+

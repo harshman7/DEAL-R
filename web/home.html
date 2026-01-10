@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEAL-R - Home</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .home-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
+        .player-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .player-avatar-large {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: var(--bg-tertiary);
+            border: 3px solid var(--accent);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 64px;
+            margin: 0 auto 24px;
+        }
+
+        .player-name {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .chips-display {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--accent);
+            margin: 16px 0;
+        }
+
+        .chips-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .home-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .home-btn {
+            padding: 16px 24px;
+            border: 2px solid var(--accent);
+            background: var(--bg-secondary);
+            color: var(--accent);
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .home-btn:hover {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .home-btn.secondary {
+            border-color: var(--border);
+            color: var(--text-secondary);
+        }
+
+        .home-btn.secondary:hover {
+            border-color: var(--text-secondary);
+            color: var(--text-primary);
+        }
+
+        .nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .nav-btn.active {
+            color: var(--accent);
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .nav-btn:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="home-container">
+        <div class="player-card">
+            <div class="player-avatar-large" id="playerAvatar">👤</div>
+            <div class="player-name" id="playerName">Loading...</div>
+            <div class="chips-display" id="chipsDisplay">0</div>
+            <div class="chips-label">Available Chips</div>
+        </div>
+
+        <div class="home-actions">
+            <button class="home-btn" onclick="window.homeUI.startHand()">Start Hand</button>
+            <button class="home-btn secondary" onclick="window.homeUI.goToRoulette()">🎰 Daily Roulette</button>
+        </div>
+        
+        <button class="home-btn" style="margin-top: 16px;" onclick="window.homeUI.startHand()" id="startHandBtn">Start Hand</button>
+    </div>
+
+    <div class="nav-bar">
+        <button class="nav-btn active" onclick="window.location.href='home.html'">Home</button>
+        <button class="nav-btn" onclick="window.location.href='table.html'">Table</button>
+        <button class="nav-btn" onclick="window.location.href='roulette.html'">Roulette</button>
+        <button class="nav-btn" onclick="window.homeUI.logout()">Logout</button>
+    </div>
+
+    <script src="home.js"></script>
+</body>
+</html>

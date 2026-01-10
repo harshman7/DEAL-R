@@ -35,6 +35,7 @@
     <!-- Action Button (Center) -->
     <div class="action-center" id="actionCenter" style="display: none;">
         <button class="action-center-btn" id="waitBtn">Wait for the next hand</button>
+        <button class="action-center-btn" id="startHandBtn" style="display: none; margin-top: 12px;" onclick="window.pokerUI.startHand()">Start Hand</button>
     </div>
 
     <!-- Action Panel (Bottom) -->
@@ -72,6 +73,14 @@
         <div id="debugContent"></div>
     </div>
 
-    <script src="app.js"></script>
+    <!-- Navigation Bar -->
+    <div class="nav-bar">
+        <button class="nav-btn" onclick="window.location.href='home.html'">Home</button>
+        <button class="nav-btn active" onclick="window.location.href='table.html'">Table</button>
+        <button class="nav-btn" onclick="window.location.href='roulette.html'">Roulette</button>
+        <button class="nav-btn" onclick="window.pokerUI.logout()">Logout</button>
+    </div>
+
+    <script src="table.js"></script>
 </body>
 </html>

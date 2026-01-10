@@ -87,6 +87,11 @@ def _handle_sit_down(
         raise ValueError(f"Seat {command.seat_id} is already occupied")
     if command.stack <= 0:
         raise ValueError("Stack must be positive")
+    
+    # Enforce 6 player max per table
+    seated_count = sum(1 for seat in state.seats if seat is not None)
+    if seated_count >= 6:
+        raise ValueError(f"Table is full (max 6 players). Please join a different table.")
 
     event = PlayerSatDown(
         timestamp=timestamp,

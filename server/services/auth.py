@@ -15,7 +15,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
     Args:
         plain_password: Plain text password
-        hashed_password: Hashed password
+        hashed_password: Hashed password (string)
 
     Returns:
         True if password matches
@@ -26,8 +26,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         password_bytes = password_bytes[:72]
     
     try:
-        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
-    except Exception:
+        # hashed_password is a string, convert to bytes
+        if isinstance(hashed_password, bytes):
+            hash_bytes = hashed_password
+        else:
+            hash_bytes = hashed_password.encode('utf-8')
+        return bcrypt.checkpw(password_bytes, hash_bytes)
+    except Exception as e:
+        print(f"[Auth] Password verification error: {e}")
         return False
 
 

@@ -62,13 +62,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 async def root():
-    """Root endpoint - redirects to login or shows API info."""
+    """Root endpoint - redirects to home or shows API info."""
     from fastapi.responses import RedirectResponse
     try:
         import os
         web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
         if os.path.exists(web_dir):
-            return RedirectResponse(url="/web/login.html")
+            return RedirectResponse(url="/web/home.html")
     except Exception:
         pass
     return {

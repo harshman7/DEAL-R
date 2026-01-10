@@ -246,6 +246,19 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
             if command_type == "sit_down":
                 request = SitDownRequest(**data["data"])
                 print(f"[WS] Processing sit_down command: player={request.player_id}, seat={request.seat_id}, stack={request.stack}")
+                
+                # Check table capacity before processing (max 6 players)
+                current_state = service.get_state()
+                seated_count = sum(1 for seat in current_state.seats if seat is not None)
+                if seated_count >= 6:
+                    error_msg = "Table is full (max 6 players). Please join a different table."
+                    print(f"[WS] Command failed: {error_msg}")
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": error_msg
+                    })
+                    continue
+                
                 command = SitDown(
                     idempotency_key=data.get("idempotency_key", f"sit-{time.time()}"),
                     timestamp=time.time(),

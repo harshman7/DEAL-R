@@ -54,8 +54,8 @@ class TableService:
             if table_events:
                 self.current_state = self._replay_events(table_events)
             else:
-                # No events yet - create fresh state
-                self.current_state = GameState(num_seats=9)
+                # No events yet - create fresh state (max 6 players per table)
+                self.current_state = GameState(num_seats=6)
         
         # SIMPLE: On first load, clear all seated players (server restart cleanup)
         if not self._cleared_on_startup and self.current_state:
@@ -202,7 +202,7 @@ class TableService:
 
     def _replay_events(self, events: list[DomainEvent]) -> GameState:
         """Replay events to reconstruct state."""
-        state = GameState(num_seats=9)
+        state = GameState(num_seats=6)
         for event in events:
             state = apply_event(state, event)
         return state
