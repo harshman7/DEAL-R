@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from server.services.auth import get_player_id
@@ -11,12 +11,14 @@ security = HTTPBearer(auto_error=False)
 
 
 async def get_current_player(
-    authorization: Optional[HTTPAuthorizationCredentials] = Header(None),
+    request: Request,
+    authorization: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> str:
     """Dependency to get current authenticated player.
 
     Args:
-        authorization: Authorization header
+        request: FastAPI request object
+        authorization: Authorization credentials from HTTPBearer (can be None)
 
     Returns:
         Player ID
@@ -25,14 +27,23 @@ async def get_current_player(
         HTTPException: If authentication fails
     """
     token = None
+    
+    # Try to get token from HTTPBearer first
     if authorization:
         token = authorization.credentials
-    elif authorization is None:
-        # For development, allow anonymous access
+    else:
+        # Fallback: try to get from Authorization header directly
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.replace("Bearer ", "", 1)
+    
+    # If no token provided, allow anonymous access (for development)
+    if not token:
         return "anonymous"
     
+    # Validate token
     player_id = get_player_id(token)
-    if player_id == "anonymous" and token:
+    if player_id == "anonymous":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication token",

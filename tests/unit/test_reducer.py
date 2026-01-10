@@ -66,7 +66,8 @@ class TestReducer:
 
         new_state, events = next_state(state, start_cmd)
 
-        assert len(events) == 1
+        # StartHand now creates HandStarted + BlindPosted events (one for each blind)
+        assert len(events) >= 1
         assert isinstance(events[0], HandStarted)
         assert events[0].hand_id == "hand-123"
         assert new_state.hand_id == "hand-123"

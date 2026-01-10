@@ -362,9 +362,12 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                     },
                 }
                 
-                # Broadcast to all connections (including sender)
+                # Broadcast to all other connections (exclude sender - they already got command_accepted and will get state next)
                 print(f"[WS] Broadcasting state to table {table_id}: {seated_count} players ({seated_player_ids}), version {current_version}")
-                await manager.broadcast(table_id, updated_state)
+                # Send state to sender first
+                await websocket.send_json(state_message)
+                # Then broadcast to other connections
+                await manager.broadcast(table_id, updated_state, exclude=websocket)
 
             except ValueError as e:
                 error_msg = str(e)
