@@ -108,8 +108,10 @@ class TestTableService:
             pass  # May fail if action not legal, that's okay
 
         # Get updated version after first command
-        updated_version = service.event_store.get_current_version("table-default")
-        
+        service.event_store.get_current_version("table-default")
+        # Use old version to trigger version mismatch
+        old_version = current_version  # This is the version before the first command
+
         # Try action with wrong version (use old version)
         act_cmd2 = Act(
             idempotency_key="act-2",
@@ -118,7 +120,7 @@ class TestTableService:
             action_type=ActionType.CALL,  # Use CALL which should be legal after a bet
             amount=100,
         )
-        
+
         # Need to set up a betting scenario first - ensure there's a bet to call
         # Actually, let's use a BET action which should be legal when no bet exists
         # But first ensure we're in a state where BET is legal
@@ -144,5 +146,6 @@ class TestTableService:
 
         # Should fail with version mismatch (use old version, not updated_version)
         with pytest.raises((ValueError, Exception), match=".*[Vv]ersion.*"):
-            service.process_command(act_cmd2, "act-2", current_version)  # Wrong version (already incremented)
-
+            service.process_command(
+                act_cmd2, "act-2", old_version
+            )  # Wrong version (already incremented)

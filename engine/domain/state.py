@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -52,17 +51,15 @@ class PlayerState(BaseModel):
     """
 
     seat_id: SeatId
-    player_id: Optional[str] = Field(default=None, description="Player identifier")
+    player_id: str | None = Field(default=None, description="Player identifier")
     stack: Money = Field(ge=0, description="Current chip stack")
     committed_street: Money = Field(
         default=0, ge=0, description="Chips committed this betting round"
     )
-    committed_total: Money = Field(
-        default=0, ge=0, description="Total chips committed this hand"
-    )
+    committed_total: Money = Field(default=0, ge=0, description="Total chips committed this hand")
     status: PlayerStatus = PlayerStatus.OUT
     acted_this_street: bool = False
-    hole_cards: Optional[tuple[Card, Card]] = Field(
+    hole_cards: tuple[Card, Card] | None = Field(
         default=None, exclude=True, description="Server-only: player's hole cards"
     )
 
@@ -90,19 +87,17 @@ class GameState(BaseModel):
     big_blind: Money = Field(default=100, gt=0)
 
     # Seating
-    seats: list[Optional[PlayerState]] = Field(
+    seats: list[PlayerState | None] = Field(
         default_factory=list, description="Seat array (None = empty seat)"
     )
 
     # Hand state
-    hand_id: Optional[str] = Field(default=None, description="Unique hand identifier")
+    hand_id: str | None = Field(default=None, description="Unique hand identifier")
     street: Street = Street.WAITING
-    button_seat: Optional[SeatId] = Field(default=None, description="Dealer button seat")
-    sb_seat: Optional[SeatId] = Field(default=None, description="Small blind seat")
-    bb_seat: Optional[SeatId] = Field(default=None, description="Big blind seat")
-    to_act_seat: Optional[SeatId] = Field(
-        default=None, description="Seat that must act next"
-    )
+    button_seat: SeatId | None = Field(default=None, description="Dealer button seat")
+    sb_seat: SeatId | None = Field(default=None, description="Small blind seat")
+    bb_seat: SeatId | None = Field(default=None, description="Big blind seat")
+    to_act_seat: SeatId | None = Field(default=None, description="Seat that must act next")
 
     # Community cards
     community_cards: list[Card] = Field(
@@ -114,20 +109,14 @@ class GameState(BaseModel):
     min_raise: Money = Field(
         default=0, ge=0, description="Minimum raise amount (2x last raise or big blind)"
     )
-    last_raiser_seat: Optional[SeatId] = Field(
-        default=None, description="Last seat that raised"
-    )
+    last_raiser_seat: SeatId | None = Field(default=None, description="Last seat that raised")
 
     # Pots
     pots: list[Pot] = Field(default_factory=list, description="Main pot + side pots")
 
     # RNG seed tracking (for deterministic replay)
-    seed_commit: Optional[str] = Field(
-        default=None, description="Committed seed hash (before reveal)"
-    )
-    seed_reveal: Optional[int] = Field(
-        default=None, description="Revealed seed (after commit phase)"
-    )
+    seed_commit: str | None = Field(default=None, description="Committed seed hash (before reveal)")
+    seed_reveal: int | None = Field(default=None, description="Revealed seed (after commit phase)")
 
     model_config = {
         "arbitrary_types_allowed": True,
@@ -144,11 +133,10 @@ class GameState(BaseModel):
         return [
             player
             for player in self.seats
-            if player is not None
-            and player.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN)
+            if player is not None and player.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN)
         ]
 
-    def get_player(self, seat_id: SeatId) -> Optional[PlayerState]:
+    def get_player(self, seat_id: SeatId) -> PlayerState | None:
         """Get player at seat, or None if empty."""
         if 0 <= seat_id < len(self.seats):
             return self.seats[seat_id]
@@ -157,4 +145,3 @@ class GameState(BaseModel):
     def count_active_players(self) -> int:
         """Count active players (not folded, not out)."""
         return len(self.get_active_players())
-

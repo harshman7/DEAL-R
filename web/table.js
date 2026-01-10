@@ -180,9 +180,15 @@ class PokerUI {
                 this.joinTable();
             }
         } else if (data.type === 'command_accepted') {
-            this.expectedVersion = data.new_version;
+            console.log(`[UI] Command accepted: idempotency_key=${data.idempotency_key}, new_version=${data.new_version}`);
+            if (data.new_version !== undefined) {
+                this.expectedVersion = data.new_version;
+            }
         } else if (data.type === 'error') {
+            console.error(`[UI] Error from server: ${data.message}`);
             this.handleError({ message: data.message });
+        } else {
+            console.warn(`[UI] Unknown message type: ${data.type}`, data);
         }
     }
 
@@ -232,12 +238,15 @@ class PokerUI {
     
     updateActions(state) {
         const mySeat = state.seats?.find(s => s?.player_id === this.playerId);
-        const isHandActive = state.street && state.street !== 'WAITING' && state.street !== 'COMPLETE';
+        const street = state.street || 'WAITING';
+        const isHandActive = street !== 'WAITING' && street !== 'COMPLETE';
         const canAct = isHandActive && mySeat && mySeat.status === 'ACTIVE' && state.to_act_seat === mySeat.seat_id;
         
         // Show start hand button if waiting and seated
         const seatedCount = state.seats.filter(s => s && s.player_id).length;
         const canStartHand = !isHandActive && mySeat && seatedCount >= 2;
+        
+        console.log(`[UI] updateActions: street=${street}, isHandActive=${isHandActive}, canAct=${canAct}, canStartHand=${canStartHand}, seatedCount=${seatedCount}, mySeat=${!!mySeat}`);
         
         if (canAct) {
             // Player's turn - show action panel
@@ -253,9 +262,11 @@ class PokerUI {
             if (this.actionPanel) this.actionPanel.style.display = 'none';
             
             if (this.actionCenter) {
+                this.actionCenter.style.display = 'flex';
+                
                 if (canStartHand) {
                     // Show start hand button
-                    this.actionCenter.style.display = 'flex';
+                    console.log('[UI] Showing start hand button');
                     if (this.startHandBtn) {
                         this.startHandBtn.style.display = 'block';
                         this.startHandBtn.disabled = false;
@@ -265,8 +276,9 @@ class PokerUI {
                     }
                 } else if (!isHandActive) {
                     // Show wait message
-                    this.actionCenter.style.display = 'flex';
-                    if (this.startHandBtn) this.startHandBtn.style.display = 'none';
+                    if (this.startHandBtn) {
+                        this.startHandBtn.style.display = 'none';
+                    }
                     if (this.waitBtn) {
                         this.waitBtn.style.display = 'block';
                         this.waitBtn.textContent = seatedCount < 2 ? 'Waiting for players...' : 'Wait for the next hand';
@@ -274,8 +286,9 @@ class PokerUI {
                     }
                 } else {
                     // Hand is active but not player's turn
-                    this.actionCenter.style.display = 'flex';
-                    if (this.startHandBtn) this.startHandBtn.style.display = 'none';
+                    if (this.startHandBtn) {
+                        this.startHandBtn.style.display = 'none';
+                    }
                     if (this.waitBtn) {
                         this.waitBtn.style.display = 'block';
                         this.waitBtn.textContent = 'Wait for your turn';
@@ -479,17 +492,34 @@ class PokerUI {
     
 
     async startHand() {
-        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            console.error('[UI] WebSocket not connected');
+            alert('Not connected to table. Please wait...');
+            return;
+        }
         const state = this.getCurrentState();
-        if (!state) return;
-        const seatedPlayers = state.seats.filter(s => s?.player_id);
+        if (!state) {
+            console.error('[UI] No state available');
+            return;
+        }
+        const seatedPlayers = state.seats.filter(s => s && s.player_id);
         if (seatedPlayers.length < 2) {
             alert('Need at least 2 players to start a hand');
             return;
         }
+        
+        // Generate hand_id and seed_commit
+        const handId = `hand-${this.tableId}-${Date.now()}`;
+        const seedCommit = `seed-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+        
+        console.log(`[UI] Starting hand: ${handId}`);
+        
         this.sendCommand({
             type: 'start_hand',
-            data: { seed_commit: Date.now().toString() },
+            data: {
+                hand_id: handId,
+                seed_commit: seedCommit
+            },
             idempotency_key: `start-${Date.now()}`,
             expected_version: this.expectedVersion
         });

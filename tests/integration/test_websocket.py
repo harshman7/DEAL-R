@@ -1,15 +1,11 @@
 """Tests for WebSocket functionality."""
 
-import asyncio
-import json
 import os
 import tempfile
-import time
 
 import pytest
 from fastapi.testclient import TestClient
 
-from engine.domain.commands import SitDown
 from server.main import app
 from server.persistence.event_store import EventStore
 from server.services.table_service import TableService
@@ -98,15 +94,14 @@ class TestWebSocket:
                 assert initial1["type"] == "state"
                 initial2 = ws2.receive_json()
                 assert initial2["type"] == "state"
-                
+
                 # If ws2's connection triggered a broadcast to ws1, consume it
                 try:
                     # Check if there's another message from ws2's connection broadcast
-                    import select
                     # Use timeout to avoid blocking
-                    extra = ws1.receive_json(timeout=0.1)
+                    ws1.receive_json(timeout=0.1)
                     # If we got here, there was an extra message, ignore it for now
-                except:
+                except Exception:
                     pass  # No extra message, that's fine
 
                 # Client 1 sits down
@@ -128,16 +123,16 @@ class TestWebSocket:
                 for _ in range(2):
                     msg = ws1.receive_json()
                     messages.append(msg)
-                
+
                 # Should have command_accepted and state (order may vary in async)
                 message_types = [m["type"] for m in messages]
                 assert "command_accepted" in message_types
                 assert "state" in message_types
-                
+
                 # Find the state message
                 state1 = next(m for m in messages if m["type"] == "state")
                 assert "seats" in state1["data"]
-                
+
                 # Client 2 receives state broadcast
                 state2 = ws2.receive_json()
                 assert state2["type"] == "state"
@@ -186,4 +181,3 @@ class TestWebSocket:
             response = websocket.receive_json()
             # May get error or success, but shouldn't crash
             assert response["type"] in ("command_accepted", "error")
-

@@ -25,7 +25,7 @@ def load_users_db() -> dict[str, dict]:
     """Load users from JSON file."""
     if USERS_DB_FILE.exists():
         try:
-            with open(USERS_DB_FILE, "r") as f:
+            with open(USERS_DB_FILE) as f:
                 return json.load(f)
         except Exception as e:
             print(f"[Auth] Error loading users database: {e}")
@@ -80,12 +80,13 @@ async def register(request: RegisterRequest):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 6 characters"
         )
-    
+
     if len(request.password) > 72:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be longer than 72 characters"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password cannot be longer than 72 characters",
         )
-    
+
     # Load current users to check for duplicates
     current_users = load_users_db()
     if request.username in current_users:
@@ -95,7 +96,9 @@ async def register(request: RegisterRequest):
 
     # Create user
     hashed_password = get_password_hash(request.password)
-    print(f"[Auth] Registering user '{request.username}' with hashed password: {hashed_password[:20]}...")
+    print(
+        f"[Auth] Registering user '{request.username}' with hashed password: {hashed_password[:20]}..."
+    )
     current_users[request.username] = {
         "username": request.username,
         "email": request.email,
@@ -108,15 +111,15 @@ async def register(request: RegisterRequest):
     # Update global users_db
     users_db.clear()
     users_db.update(current_users)
-    print(f"[Auth] User '{request.username}' registered successfully. Total users: {len(current_users)}")
+    print(
+        f"[Auth] User '{request.username}' registered successfully. Total users: {len(current_users)}"
+    )
 
     # Generate token
     player_id = f"player_{request.username}"
     token = create_access_token(data={"sub": player_id, "username": request.username})
 
-    return AuthResponse(
-        access_token=token, player_id=player_id, username=request.username
-    )
+    return AuthResponse(access_token=token, player_id=player_id, username=request.username)
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -125,15 +128,16 @@ async def login(request: LoginRequest):
     # Validate password length (bcrypt limit)
     if len(request.password) > 72:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Password cannot be longer than 72 characters"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password cannot be longer than 72 characters",
         )
-    
+
     # Load current users (in case file was modified)
     current_users = load_users_db()
     # Update global users_db
     users_db.clear()
     users_db.update(current_users)
-    
+
     user = current_users.get(request.username)
     if not user:
         print(f"[Auth] Login failed: user '{request.username}' not found in database")
@@ -155,9 +159,7 @@ async def login(request: LoginRequest):
     player_id = f"player_{request.username}"
     token = create_access_token(data={"sub": player_id, "username": request.username})
 
-    return AuthResponse(
-        access_token=token, player_id=player_id, username=request.username
-    )
+    return AuthResponse(access_token=token, player_id=player_id, username=request.username)
 
 
 @router.get("/me")
@@ -165,12 +167,9 @@ async def get_current_user(token: str = Depends(security)):
     """Get current authenticated user."""
     payload = decode_access_token(token.credentials)
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     username = payload.get("username", "unknown")
     player_id = payload.get("sub", "unknown")
 
     return {"player_id": player_id, "username": username}
-

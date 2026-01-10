@@ -7,7 +7,8 @@ from fastapi.staticfiles import StaticFiles
 
 from server.api import auth, rest, ws
 from server.config import settings
-from server.middleware import logging as logging_middleware_module, rate_limit
+from server.middleware import logging as logging_middleware_module
+from server.middleware import rate_limit
 from server.persistence.event_store import EventStore
 
 app = FastAPI(
@@ -36,11 +37,12 @@ app.include_router(auth.router)
 app.include_router(rest.router)
 app.include_router(ws.router)
 
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler."""
     import traceback
-    
+
     logger = logging_middleware_module.logger
     logger.error(
         "unhandled_exception",
@@ -50,7 +52,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         error_type=type(exc).__name__,
         traceback=traceback.format_exc(),
     )
-    
+
     return JSONResponse(
         status_code=500,
         content={
@@ -64,8 +66,10 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def root():
     """Root endpoint - redirects to home or shows API info."""
     from fastapi.responses import RedirectResponse
+
     try:
         import os
+
         web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
         if os.path.exists(web_dir):
             return RedirectResponse(url="/web/home.html")
@@ -78,9 +82,11 @@ async def root():
         "health": "/health",
     }
 
+
 # Serve web UI
 try:
     import os
+
     web_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "web")
     if os.path.exists(web_dir):
         app.mount("/web", StaticFiles(directory=web_dir, html=True), name="web")
@@ -92,7 +98,7 @@ except Exception:
 async def health():
     """Enhanced health check endpoint."""
     from sqlalchemy import text
-    
+
     # Check database connectivity
     db_healthy = False
     try:
@@ -105,9 +111,9 @@ async def health():
         db_error = str(e)
     else:
         db_error = None
-    
+
     status_code = 200 if db_healthy else 503
-    
+
     return JSONResponse(
         status_code=status_code,
         content={
@@ -117,4 +123,3 @@ async def health():
             "version": "0.1.0",
         },
     )
-

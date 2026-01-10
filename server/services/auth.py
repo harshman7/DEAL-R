@@ -1,8 +1,6 @@
 """JWT-based authentication service."""
 
-import time
 from datetime import datetime, timedelta
-from typing import Optional
 
 import bcrypt
 from jose import JWTError, jwt
@@ -21,16 +19,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         True if password matches
     """
     # Bcrypt has a 72-byte limit, so truncate if necessary
-    password_bytes = plain_password.encode('utf-8')
+    password_bytes = plain_password.encode("utf-8")
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-    
+
     try:
         # hashed_password is a string, convert to bytes
         if isinstance(hashed_password, bytes):
             hash_bytes = hashed_password
         else:
-            hash_bytes = hashed_password.encode('utf-8')
+            hash_bytes = hashed_password.encode("utf-8")
         return bcrypt.checkpw(password_bytes, hash_bytes)
     except Exception as e:
         print(f"[Auth] Password verification error: {e}")
@@ -47,17 +45,17 @@ def get_password_hash(password: str) -> str:
         Hashed password
     """
     # Bcrypt has a 72-byte limit, so truncate if necessary
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-    
+
     # Generate salt and hash
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    return hashed.decode("utf-8")
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token.
 
     Args:
@@ -77,7 +75,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def decode_access_token(token: str) -> Optional[dict]:
+def decode_access_token(token: str) -> dict | None:
     """Decode and validate a JWT token.
 
     Args:
@@ -97,7 +95,7 @@ def decode_access_token(token: str) -> Optional[dict]:
         return None
 
 
-def get_player_id(token: Optional[str] = None) -> str:
+def get_player_id(token: str | None = None) -> str:
     """Get player ID from JWT token.
 
     Args:
@@ -108,11 +106,11 @@ def get_player_id(token: Optional[str] = None) -> str:
     """
     if not token:
         return "anonymous"
-    
+
     payload = decode_access_token(token)
     if payload and "sub" in payload:
         return payload["sub"]  # "sub" is standard JWT claim for subject/user ID
-    
+
     return "anonymous"
 
 
@@ -130,7 +128,7 @@ def verify_player_can_act(player_id: str, seat_id: int, state) -> bool:
     player = state.get_player(seat_id)
     if player is None:
         return False
-    
+
     # Check if player_id matches seat owner
     # Note: In current implementation, player_id is stored in PlayerState
     # This would need to be added to PlayerState if not already present

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 from engine.domain.types import Money, SeatId
 
@@ -97,5 +96,4 @@ class Act(Command):
 
     seat_id: SeatId
     action_type: ActionType
-    amount: Optional[Money] = None  # Required for BET/RAISE
-
+    amount: Money | None = None  # Required for BET/RAISE

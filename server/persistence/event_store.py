@@ -1,9 +1,8 @@
 """Event store with optimistic concurrency control."""
 
 import json
-from typing import Optional
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -25,9 +24,7 @@ class EventStore:
         self.SessionLocal = sessionmaker(bind=self.engine)
         Base.metadata.create_all(self.engine)
 
-    def append_events(
-        self, hand_id: str, expected_version: int, events: list[DomainEvent]
-    ) -> int:
+    def append_events(self, hand_id: str, expected_version: int, events: list[DomainEvent]) -> int:
         """Append events with optimistic concurrency control.
 
         Args:
@@ -64,13 +61,13 @@ class EventStore:
                 db.add(event_model)
 
             db.commit()
-            
+
             # Create snapshot if interval reached
             if settings.snapshot_interval > 0 and new_version % settings.snapshot_interval == 0:
                 # Note: State serialization should be done by caller
                 # This is just a placeholder - actual snapshot creation happens in TableService
                 pass
-            
+
             return new_version
 
         except IntegrityError as e:
@@ -101,8 +98,8 @@ class EventStore:
             return [self._deserialize_event(e) for e in events]
         finally:
             db.close()
-    
-    def get_events_with_snapshot(self, hand_id: str) -> tuple[Optional[int], list[DomainEvent]]:
+
+    def get_events_with_snapshot(self, hand_id: str) -> tuple[int | None, list[DomainEvent]]:
         """Get events for a hand, starting from snapshot if available.
 
         Args:
@@ -153,15 +150,13 @@ class EventStore:
         """
         db: Session = self.SessionLocal()
         try:
-            snapshot = HandSnapshotModel(
-                hand_id=hand_id, version=version, state_data=state_data
-            )
+            snapshot = HandSnapshotModel(hand_id=hand_id, version=version, state_data=state_data)
             db.merge(snapshot)  # Upsert
             db.commit()
         finally:
             db.close()
 
-    def get_snapshot(self, hand_id: str) -> Optional[tuple[int, str]]:
+    def get_snapshot(self, hand_id: str) -> tuple[int, str] | None:
         """Get latest snapshot for a hand.
 
         Args:
@@ -172,7 +167,9 @@ class EventStore:
         """
         db: Session = self.SessionLocal()
         try:
-            snapshot = db.query(HandSnapshotModel).filter(HandSnapshotModel.hand_id == hand_id).first()
+            snapshot = (
+                db.query(HandSnapshotModel).filter(HandSnapshotModel.hand_id == hand_id).first()
+            )
             if snapshot:
                 return (snapshot.version, snapshot.state_data)
             return None
@@ -218,7 +215,7 @@ class EventStore:
         finally:
             db.close()
 
-    def get_command_result(self, idempotency_key: str) -> Optional[str]:
+    def get_command_result(self, idempotency_key: str) -> str | None:
         """Get result events for a previously executed command.
 
         Args:
@@ -349,4 +346,3 @@ class EventStore:
                 kwargs[k] = v
 
         return event_class(**kwargs)
-

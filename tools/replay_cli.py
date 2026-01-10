@@ -9,7 +9,6 @@ import argparse
 import hashlib
 import json
 import sys
-from typing import Optional
 
 from engine.domain.state import GameState
 from engine.reducer.reducer import apply_event
@@ -97,4 +96,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

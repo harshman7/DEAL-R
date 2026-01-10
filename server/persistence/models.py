@@ -1,10 +1,9 @@
 """SQLAlchemy models for event store."""
 
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import BigInteger, Column, Integer, String, Text
-from sqlalchemy.orm import Session, declarative_base
+from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
@@ -50,4 +49,3 @@ class CommandModel(Base):
 def init_db(engine):
     """Initialize database tables."""
     Base.metadata.create_all(engine)
-

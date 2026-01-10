@@ -15,9 +15,7 @@ from engine.rules.legality import is_betting_round_complete
 from engine.rules.sidepots import build_side_pots
 
 
-def check_auto_advance(
-    state: GameState, deck: object
-) -> tuple[GameState, list[DomainEvent]]:
+def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[DomainEvent]]:
     """Check if game should auto-advance and return new state + events.
 
     Args:
@@ -155,7 +153,6 @@ def _resolve_showdown(
 ) -> tuple[GameState, list[DomainEvent]]:
     """Resolve showdown by evaluating hands and splitting pots."""
     from engine.domain.events import ShowdownResolved
-    from engine.eval.evaluator import rank_hands, split_pot
     from engine.reducer.reducer import apply_event
 
     current_state = state
@@ -165,14 +162,14 @@ def _resolve_showdown(
     # Note: In real implementation, hole cards would come from server state
     # For now, we'll need to handle this differently
     # This is a placeholder - actual implementation needs hole cards from state
-    
+
     # Build side pots
     pots = build_side_pots(current_state)
-    
+
     # For now, if we don't have hole cards, we can't evaluate
     # This will be handled properly when we integrate with server
     # For testing, we'll create a simple winner determination
-    
+
     # Get active players (not folded)
     active_players = {}
     for seat_id, player in enumerate(current_state.seats):
@@ -180,7 +177,7 @@ def _resolve_showdown(
             # In real implementation, we'd get hole_cards from player.hole_cards
             # For now, we'll skip hand evaluation and just split pots evenly
             active_players[seat_id] = None  # Placeholder
-    
+
     # If we have hole cards, evaluate hands
     # Otherwise, split pots evenly (fallback for testing)
     if active_players:
@@ -188,7 +185,7 @@ def _resolve_showdown(
         total_pot = sum(pot.amount for pot in pots)
         amount_per_player = total_pot // len(active_players)
         remainder = total_pot % len(active_players)
-        
+
         winners = {}
         for i, seat_id in enumerate(active_players.keys()):
             amount = amount_per_player
@@ -208,6 +205,7 @@ def _resolve_showdown(
 
     # End hand
     from engine.domain.events import HandEnded
+
     end_event = HandEnded(
         timestamp=0.0,  # Will be set by caller
         winner_seat=None if len(winners) > 1 else next(iter(winners.keys())) if winners else None,
@@ -238,4 +236,3 @@ def _deal_street_cards(deck: object, street: Street) -> tuple[Card, ...]:
         return tuple(deck.deal(1))
     else:
         return tuple()
-

@@ -1,18 +1,14 @@
 """Pydantic schemas for API requests and responses."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
-
-from engine.domain.commands import ActionType
 
 
 class ErrorResponse(BaseModel):
     """Error response schema."""
 
     error: str = Field(description="Error message")
-    detail: Optional[str] = Field(default=None, description="Detailed error information")
-    request_id: Optional[str] = Field(default=None, description="Request ID for tracking")
+    detail: str | None = Field(default=None, description="Detailed error information")
+    request_id: str | None = Field(default=None, description="Request ID for tracking")
 
 
 class SitDownRequest(BaseModel):
@@ -28,9 +24,11 @@ class ActRequest(BaseModel):
 
     seat_id: int = Field(ge=0, le=9, description="Seat number")
     action_type: str = Field(description="Action type: FOLD, CHECK, CALL, BET, RAISE")
-    amount: Optional[int] = Field(default=None, ge=0, description="Amount for BET/RAISE")
+    amount: int | None = Field(default=None, ge=0, description="Amount for BET/RAISE")
     idempotency_key: str = Field(description="Unique command identifier")
-    expected_version: int = Field(ge=0, description="Expected current version for optimistic locking")
+    expected_version: int = Field(
+        ge=0, description="Expected current version for optimistic locking"
+    )
 
 
 class StartHandRequest(BaseModel):
@@ -43,7 +41,7 @@ class StartHandRequest(BaseModel):
 class TableSnapshotResponse(BaseModel):
     """Response with table snapshot."""
 
-    hand_id: Optional[str] = None
+    hand_id: str | None = None
     street: str
     seats: list[dict]
     current_bet: int
@@ -58,4 +56,3 @@ class EventResponse(BaseModel):
     event_type: str
     event_data: dict
     timestamp: float
-

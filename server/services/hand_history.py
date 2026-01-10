@@ -1,9 +1,7 @@
 """Hand history search and filtering service."""
 
 from datetime import datetime
-from typing import List, Optional
 
-from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from server.persistence.event_store import EventStore
@@ -23,13 +21,13 @@ class HandHistoryService:
 
     def search_hands(
         self,
-        player_id: Optional[str] = None,
-        table_id: Optional[str] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+        player_id: str | None = None,
+        table_id: str | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> List[str]:
+    ) -> list[str]:
         """Search for hands matching criteria.
 
         Args:
@@ -68,7 +66,7 @@ class HandHistoryService:
         finally:
             db.close()
 
-    def get_player_hands(self, player_id: str, limit: int = 100) -> List[str]:
+    def get_player_hands(self, player_id: str, limit: int = 100) -> list[str]:
         """Get hands for a specific player.
 
         Args:
@@ -81,7 +79,7 @@ class HandHistoryService:
         # Simplified - would need to search event_data for PlayerSatDown events
         return self.search_hands(player_id=player_id, limit=limit)
 
-    def get_table_hands(self, table_id: str, limit: int = 100) -> List[str]:
+    def get_table_hands(self, table_id: str, limit: int = 100) -> list[str]:
         """Get hands for a specific table.
 
         Args:
@@ -92,4 +90,3 @@ class HandHistoryService:
             List of hand IDs
         """
         return self.search_hands(table_id=table_id, limit=limit)
-

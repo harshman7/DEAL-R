@@ -1,9 +1,8 @@
 """Table service: orchestrates command processing, event persistence, and broadcasting."""
 
 import json
-from typing import Optional
 
-from engine.domain.commands import Act, ActionType, Command, SitDown, StartHand
+from engine.domain.commands import Command, StartHand
 from engine.domain.events import DomainEvent
 from engine.domain.state import GameState
 from engine.domain.types import Deck
@@ -23,25 +22,25 @@ class TableService:
         """
         self.event_store = event_store
         self.table_id = table_id
-        self.current_state: Optional[GameState] = None
-        self.hand_id: Optional[str] = None
+        self.current_state: GameState | None = None
+        self.hand_id: str | None = None
         self._cleared_on_startup = False  # Track if we've cleared players on startup
 
     def get_state(self) -> GameState:
         """Get current table state.
-        
+
         SIMPLE: Use cached state if available, only reload when necessary.
         On first load, clears all seated players (server restart cleanup).
         """
         # SIMPLE: Return cached state if we have it
         if self.current_state is not None:
             return self.current_state
-        
+
         # Only reload if we don't have cached state
         # Load pre-hand events (table-level stream) first
         table_stream_id = f"table-{self.table_id}"
         table_events = self.event_store.get_events(table_stream_id)
-        
+
         # If we have a hand, also load hand events
         if self.hand_id:
             hand_events = self.event_store.get_events(self.hand_id)
@@ -56,45 +55,42 @@ class TableService:
             else:
                 # No events yet - create fresh state (max 6 players per table)
                 self.current_state = GameState(num_seats=6)
-        
+
         # SIMPLE: On first load, clear all seated players (server restart cleanup)
         if not self._cleared_on_startup and self.current_state:
             self._clear_seated_players()
             self._cleared_on_startup = True
-        
+
         return self.current_state
-    
+
     def _clear_seated_players(self):
         """Clear all seated players (called on server startup).
-        
+
         When server restarts, WebSocket connections are lost but events persist.
         This clears all seated players so they need to rejoin.
         """
-        from engine.domain.events import PlayerStoodUp
-        from engine.domain.state import PlayerStatus
         import time
-        
+
+        from engine.domain.events import PlayerStoodUp
+
         # Find all seated players
         seated_players = []
         for seat in self.current_state.seats:
             if seat is not None:
                 seated_players.append(seat.seat_id)
-        
+
         if not seated_players:
             return  # No players to clear
-        
+
         # Add PlayerStoodUp events for each seated player
         table_stream_id = f"table-{self.table_id}"
         current_version = self.event_store.get_current_version(table_stream_id)
-        
+
         stand_up_events = []
         for seat_id in seated_players:
-            event = PlayerStoodUp(
-                timestamp=time.time(),
-                seat_id=seat_id
-            )
+            event = PlayerStoodUp(timestamp=time.time(), seat_id=seat_id)
             stand_up_events.append(event)
-        
+
         if stand_up_events:
             # Append events to clear players
             try:
@@ -107,7 +103,9 @@ class TableService:
                     self.current_state = self._replay_events(all_events)
                 else:
                     self.current_state = self._replay_events(table_events)
-                print(f"[TableService] Cleared {len(seated_players)} seated players from table {self.table_id} on startup")
+                print(
+                    f"[TableService] Cleared {len(seated_players)} seated players from table {self.table_id} on startup"
+                )
             except Exception as e:
                 print(f"[TableService] Warning: Could not clear seated players: {e}")
                 # If clearing fails, just set seats to None directly
@@ -142,11 +140,11 @@ class TableService:
 
         # Get current state (always fresh from events)
         state = self.get_state()
-        
+
         # Get current version for optimistic concurrency
         event_stream_id = self.hand_id or f"table-{self.table_id}"
         current_version = self.event_store.get_current_version(event_stream_id)
-        
+
         # If expected_version is 0 and we have events, use current version
         if expected_version == 0 and current_version > 0:
             expected_version = current_version
@@ -156,6 +154,7 @@ class TableService:
         if isinstance(command, StartHand):
             # Create deck from seed_commit (hash to int) - SIMPLE approach
             import hashlib
+
             seed_int = int(hashlib.sha256(command.seed_commit.encode()).hexdigest(), 16) % (2**31)
             deck = Deck.create_shuffled(seed_int)
             print(f"[TableService] Created deck for hand {command.hand_id} with seed {seed_int}")
@@ -169,17 +168,13 @@ class TableService:
         # Append events with optimistic concurrency
         if self.hand_id:
             # Hand has started - use hand_id
-            new_version = self.event_store.append_events(
-                event_stream_id, expected_version, events
-            )
+            new_version = self.event_store.append_events(event_stream_id, expected_version, events)
         else:
             # Before hand starts - use table-level stream
             if isinstance(command, StartHand):
                 self.hand_id = command.hand_id
                 # Start new hand stream
-                new_version = self.event_store.append_events(
-                    self.hand_id, 0, events
-                )
+                new_version = self.event_store.append_events(self.hand_id, 0, events)
             else:
                 # Store pre-hand events (like SitDown) in table stream
                 new_version = self.event_store.append_events(
@@ -222,4 +217,3 @@ class TableService:
         self.hand_id = hand_id
         self.current_state = state
         return state
-

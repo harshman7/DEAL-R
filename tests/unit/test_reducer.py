@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from engine.domain.commands import Act, ActionType, SitDown, StartHand
 from engine.domain.events import ActionApplied, HandStarted, PlayerSatDown
 from engine.domain.state import GameState, PlayerStatus, Street
@@ -230,11 +228,10 @@ class TestEventReplay:
 
         # Apply event twice
         state1 = apply_event(state, event)
-        state2 = apply_event(state1, event)  # Applying again should be idempotent
+        apply_event(state1, event)  # Applying again should be idempotent
 
         # Actually, events aren't idempotent by design - applying same event twice
         # would be wrong. But applying the same event to the same state should
         # produce the same result
         state1_again = apply_event(state, event)
         assert state1.get_player(0).stack == state1_again.get_player(0).stack
-

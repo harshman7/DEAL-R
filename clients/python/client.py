@@ -3,7 +3,7 @@
 import asyncio
 import json
 import time
-from typing import AsyncIterator, Optional
+from collections.abc import AsyncIterator
 
 import websockets
 from websockets.client import WebSocketClientProtocol
@@ -12,7 +12,7 @@ from websockets.client import WebSocketClientProtocol
 class PokerClient:
     """Client for interacting with Poker Engine API."""
 
-    def __init__(self, base_url: str = "http://localhost:8000", token: Optional[str] = None):
+    def __init__(self, base_url: str = "http://localhost:8000", token: str | None = None):
         """Initialize client.
 
         Args:
@@ -75,12 +75,10 @@ class PokerClient:
         headers = {}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
-        
+
         return await websockets.connect(ws_url, extra_headers=headers)
 
-    async def watch_table(
-        self, table_id: str
-    ) -> AsyncIterator[dict]:
+    async def watch_table(self, table_id: str) -> AsyncIterator[dict]:
         """Watch table for real-time updates.
 
         Args:
@@ -98,7 +96,11 @@ class PokerClient:
             await ws.close()
 
     async def send_command(
-        self, table_id: str, command_type: str, command_data: dict, idempotency_key: Optional[str] = None
+        self,
+        table_id: str,
+        command_type: str,
+        command_data: dict,
+        idempotency_key: str | None = None,
     ) -> dict:
         """Send a command via WebSocket.
 
@@ -114,8 +116,8 @@ class PokerClient:
         ws = await self.connect_websocket(table_id)
         try:
             # Receive initial state
-            initial = await ws.recv()
-            
+            await ws.recv()
+
             # Send command
             command = {
                 "type": command_type,
@@ -124,16 +126,14 @@ class PokerClient:
                 "expected_version": 0,  # Would need to track this in real implementation
             }
             await ws.send(json.dumps(command))
-            
+
             # Wait for response
             response = await ws.recv()
             return json.loads(response)
         finally:
             await ws.close()
 
-    async def sit_down(
-        self, table_id: str, seat_id: int, stack: int, player_id: str
-    ) -> dict:
+    async def sit_down(self, table_id: str, seat_id: int, stack: int, player_id: str) -> dict:
         """Sit down at a table.
 
         Args:
@@ -156,8 +156,8 @@ class PokerClient:
         table_id: str,
         seat_id: int,
         action_type: str,
-        amount: Optional[int] = None,
-        idempotency_key: Optional[str] = None,
+        amount: int | None = None,
+        idempotency_key: str | None = None,
         expected_version: int = 0,
     ) -> dict:
         """Make a player action.
@@ -185,9 +185,7 @@ class PokerClient:
             },
         )
 
-    async def start_hand(
-        self, table_id: str, hand_id: str, seed_commit: str
-    ) -> dict:
+    async def start_hand(self, table_id: str, hand_id: str, seed_commit: str) -> dict:
         """Start a new hand.
 
         Args:
@@ -209,11 +207,11 @@ class PokerClient:
 async def example():
     """Example usage of the client."""
     client = PokerClient(token="your-token-here")
-    
+
     # Get table snapshot
     snapshot = await client.get_table_snapshot("table-1")
     print(f"Table state: {snapshot['street']}")
-    
+
     # Watch table for updates
     async for event in client.watch_table("table-1"):
         print(f"Event: {event}")
@@ -221,4 +219,3 @@ async def example():
 
 if __name__ == "__main__":
     asyncio.run(example())
-

@@ -2,10 +2,8 @@
 
 import time
 
-import pytest
-
 from engine.domain.commands import Act, ActionType, SitDown, StartHand
-from engine.domain.state import GameState, PlayerStatus, Street
+from engine.domain.state import GameState, Street
 from engine.domain.types import Deck
 from engine.reducer.reducer import next_state
 
@@ -132,7 +130,6 @@ class TestAutoAdvance:
             }
         )
         # Both players have acted and are at same commitment
-        from engine.domain.state import PlayerState
 
         player0 = state.get_player(0)
         player1 = state.get_player(1)
@@ -164,7 +161,7 @@ class TestHandEvaluation:
     def test_evaluate_royal_flush(self):
         """Test evaluating a royal flush."""
         from engine.domain.types import Card, Rank, Suit
-        from engine.eval.evaluator import evaluate_hand, HandRank
+        from engine.eval.evaluator import HandRank, evaluate_hand
 
         hole = (Card(Rank.ACE, Suit.SPADES), Card(Rank.KING, Suit.SPADES))
         board = [
@@ -181,7 +178,7 @@ class TestHandEvaluation:
     def test_evaluate_pair(self):
         """Test evaluating a pair."""
         from engine.domain.types import Card, Rank, Suit
-        from engine.eval.evaluator import evaluate_hand, HandRank
+        from engine.eval.evaluator import HandRank, evaluate_hand
 
         hole = (Card(Rank.ACE, Suit.SPADES), Card(Rank.KING, Suit.HEARTS))
         board = [
@@ -195,4 +192,3 @@ class TestHandEvaluation:
         hand_value = evaluate_hand(hole, board)
         assert hand_value.rank == HandRank.PAIR
         assert hand_value.kickers[0] == Rank.ACE.value
-

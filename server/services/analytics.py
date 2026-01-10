@@ -1,7 +1,5 @@
 """Analytics service for poker statistics."""
 
-from typing import Dict, List, Optional
-
 from server.persistence.event_store import EventStore
 from server.services.hand_history import HandHistoryService
 
@@ -18,7 +16,7 @@ class AnalyticsService:
         self.event_store = event_store
         self.hand_history = HandHistoryService(event_store)
 
-    def get_player_stats(self, player_id: str) -> Dict:
+    def get_player_stats(self, player_id: str) -> dict:
         """Get statistics for a player.
 
         Args:
@@ -28,7 +26,7 @@ class AnalyticsService:
             Dictionary with player statistics
         """
         hands = self.hand_history.get_player_hands(player_id, limit=1000)
-        
+
         # Simplified stats - would need to analyze events
         return {
             "player_id": player_id,
@@ -38,7 +36,7 @@ class AnalyticsService:
             "total_profit": 0,  # Would calculate from stack changes
         }
 
-    def get_table_stats(self, table_id: str) -> Dict:
+    def get_table_stats(self, table_id: str) -> dict:
         """Get statistics for a table.
 
         Args:
@@ -48,14 +46,14 @@ class AnalyticsService:
             Dictionary with table statistics
         """
         hands = self.hand_history.get_table_hands(table_id, limit=1000)
-        
+
         return {
             "table_id": table_id,
             "total_hands": len(hands),
             "active_players": 0,  # Would calculate from current state
         }
 
-    def get_hand_summary(self, hand_id: str) -> Dict:
+    def get_hand_summary(self, hand_id: str) -> dict:
         """Get summary statistics for a hand.
 
         Args:
@@ -65,7 +63,7 @@ class AnalyticsService:
             Dictionary with hand summary
         """
         events = self.event_store.get_events(hand_id)
-        
+
         # Analyze events to extract summary
         summary = {
             "hand_id": hand_id,
@@ -74,11 +72,10 @@ class AnalyticsService:
             "final_pot": 0,
             "winner": None,
         }
-        
+
         # Would parse events to extract details
         for event in events:
             if hasattr(event, "winners"):
                 summary["winner"] = list(event.winners.keys())[0] if event.winners else None
-        
-        return summary
 
+        return summary

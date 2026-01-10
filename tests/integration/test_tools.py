@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from engine.domain.commands import Act, ActionType, SitDown, StartHand
-from engine.domain.events import HandStarted
+from engine.domain.commands import SitDown, StartHand
 from server.persistence.event_store import EventStore
 from server.services.table_service import TableService
 from tools.hh_export import export_hand_history
@@ -43,11 +42,9 @@ def test_replay_cli_hash_state(temp_db):
 def test_replay_cli_replay_hand(temp_db):
     """Test replaying a hand from events."""
     # Setup: Create a hand with events
-    from server.persistence.event_store import EventStore
 
     event_store = EventStore(temp_db)
     table_service = TableService(event_store, table_id="test-table")
-    table_id = "test-table"
     hand_id = "test-hand-1"
 
     # Sit down players
@@ -102,11 +99,9 @@ def test_replay_cli_replay_hand(temp_db):
 def test_hh_export(temp_db, tmp_path):
     """Test hand history export."""
     # Setup: Create a hand with events
-    from server.persistence.event_store import EventStore
 
     event_store = EventStore(temp_db)
     table_service = TableService(event_store, table_id="test-table")
-    table_id = "test-table"
     hand_id = "test-hand-2"
 
     # Sit down players
@@ -184,4 +179,3 @@ def test_hh_export_nonexistent_hand(temp_db):
         pass  # Expected
     finally:
         sys.stderr = old_stderr
-

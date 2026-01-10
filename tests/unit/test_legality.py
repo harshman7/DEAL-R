@@ -2,9 +2,7 @@
 
 import time
 
-import pytest
-
-from engine.domain.commands import Act, ActionType, SitDown, StartHand
+from engine.domain.commands import ActionType, SitDown, StartHand
 from engine.domain.state import GameState, PlayerState, PlayerStatus, Street
 from engine.reducer.reducer import next_state
 from engine.rules.legality import (
@@ -13,8 +11,6 @@ from engine.rules.legality import (
     get_call_amount,
     get_min_raise_amount,
     is_betting_round_complete,
-    is_raise_reopening,
-    next_player_to_act,
     validate_action,
 )
 
@@ -25,9 +21,11 @@ class TestLegalActions:
     def test_check_when_no_bet(self):
         """Test CHECK is legal when no bet exists."""
         state = GameState(num_seats=6, small_blind=50, big_blind=100)
-        state.seats[0] = type(state.seats[0])(
-            seat_id=0, stack=1000, status=PlayerStatus.ACTIVE
-        ) if state.seats[0] else None
+        state.seats[0] = (
+            type(state.seats[0])(seat_id=0, stack=1000, status=PlayerStatus.ACTIVE)
+            if state.seats[0]
+            else None
+        )
 
         # Actually use reducer to set up properly
         state, _ = next_state(
@@ -119,9 +117,13 @@ class TestCallAmount:
     def test_call_amount_no_bet(self):
         """Test call amount is 0 when no bet."""
         state = GameState(num_seats=6)
-        state.seats[0] = type(state.seats[0])(
-            seat_id=0, stack=1000, status=PlayerStatus.ACTIVE, committed_street=0
-        ) if state.seats[0] else None
+        state.seats[0] = (
+            type(state.seats[0])(
+                seat_id=0, stack=1000, status=PlayerStatus.ACTIVE, committed_street=0
+            )
+            if state.seats[0]
+            else None
+        )
         state = state.model_copy(update={"current_bet": 0})
 
         assert get_call_amount(state, 0) == 0
@@ -138,9 +140,13 @@ class TestCallAmount:
     def test_call_amount_already_at_bet(self):
         """Test call amount is 0 when already at bet."""
         state = GameState(num_seats=6)
-        state.seats[0] = type(state.seats[0])(
-            seat_id=0, stack=1000, status=PlayerStatus.ACTIVE, committed_street=100
-        ) if state.seats[0] else None
+        state.seats[0] = (
+            type(state.seats[0])(
+                seat_id=0, stack=1000, status=PlayerStatus.ACTIVE, committed_street=100
+            )
+            if state.seats[0]
+            else None
+        )
         state = state.model_copy(update={"current_bet": 100})
 
         assert get_call_amount(state, 0) == 0
@@ -209,7 +215,9 @@ class TestActionValidation:
         state = GameState(num_seats=6, big_blind=100)
         player = PlayerState(seat_id=0, stack=1000, status=PlayerStatus.ACTIVE, committed_street=0)
         state.seats[0] = player
-        state = state.model_copy(update={"current_bet": 100, "min_raise": 100, "street": Street.PREFLOP})
+        state = state.model_copy(
+            update={"current_bet": 100, "min_raise": 100, "street": Street.PREFLOP}
+        )
 
         # Raise too small (only 50 more)
         is_valid, msg = validate_action(state, 0, ActionType.RAISE, amount=150)
@@ -226,20 +234,28 @@ class TestBettingRoundCompletion:
     def test_round_complete_all_checked(self):
         """Test round complete when all players checked."""
         state = GameState(num_seats=6)
-        state.seats[0] = type(state.seats[0])(
-            seat_id=0,
-            stack=1000,
-            status=PlayerStatus.ACTIVE,
-            committed_street=0,
-            acted_this_street=True,
-        ) if state.seats[0] else None
-        state.seats[1] = type(state.seats[1])(
-            seat_id=1,
-            stack=1000,
-            status=PlayerStatus.ACTIVE,
-            committed_street=0,
-            acted_this_street=True,
-        ) if state.seats[1] else None
+        state.seats[0] = (
+            type(state.seats[0])(
+                seat_id=0,
+                stack=1000,
+                status=PlayerStatus.ACTIVE,
+                committed_street=0,
+                acted_this_street=True,
+            )
+            if state.seats[0]
+            else None
+        )
+        state.seats[1] = (
+            type(state.seats[1])(
+                seat_id=1,
+                stack=1000,
+                status=PlayerStatus.ACTIVE,
+                committed_street=0,
+                acted_this_street=True,
+            )
+            if state.seats[1]
+            else None
+        )
         state = state.model_copy(update={"current_bet": 0, "street": Street.FLOP})
 
         assert is_betting_round_complete(state)
@@ -300,4 +316,3 @@ class TestActionAmountCalculation:
 
         amount = calculate_action_amount(state, 0, ActionType.BET, requested_amount=200)
         assert amount == 200
-

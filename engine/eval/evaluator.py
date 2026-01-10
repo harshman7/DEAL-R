@@ -9,7 +9,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass
 
-from engine.domain.types import Card, Rank, Suit
+from engine.domain.types import Card
 
 
 class HandRank:
@@ -150,9 +150,7 @@ def _evaluate_five_cards(cards: list[Card]) -> HandValue:
     return HandValue(rank=HandRank.HIGH_CARD, kickers=tuple(sorted_ranks_desc))
 
 
-def rank_hands(
-    players: dict[int, tuple[Card, Card]], board: list[Card]
-) -> dict[int, HandValue]:
+def rank_hands(players: dict[int, tuple[Card, Card]], board: list[Card]) -> dict[int, HandValue]:
     """Rank all players' hands.
 
     Args:
@@ -168,9 +166,7 @@ def rank_hands(
     return rankings
 
 
-def split_pot(
-    pots: list, player_rankings: dict[int, HandValue]
-) -> dict[int, int]:
+def split_pot(pots: list, player_rankings: dict[int, HandValue]) -> dict[int, int]:
     """Split pots among winners.
 
     Args:
@@ -195,9 +191,7 @@ def split_pot(
         # Find winner(s)
         best_hand = max(eligible_rankings.values())
         winning_seats = [
-            seat_id
-            for seat_id, hand_value in eligible_rankings.items()
-            if hand_value == best_hand
+            seat_id for seat_id, hand_value in eligible_rankings.items() if hand_value == best_hand
         ]
 
         # Split pot evenly among winners
@@ -211,4 +205,3 @@ def split_pot(
             winners[seat_id] = winners.get(seat_id, 0) + amount
 
     return winners
-

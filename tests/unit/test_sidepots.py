@@ -1,7 +1,5 @@
 """Tests for side pot calculation."""
 
-import pytest
-
 from engine.domain.state import GameState, PlayerState, PlayerStatus
 from engine.rules.sidepots import build_side_pots, get_pot_distribution, validate_pot_invariant
 
@@ -210,4 +208,3 @@ class TestPotInvariant:
         pots[0].amount = 999
 
         assert not validate_pot_invariant(state, pots)
-

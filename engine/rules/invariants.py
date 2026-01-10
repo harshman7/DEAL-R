@@ -38,11 +38,7 @@ def check_all_invariants(state: GameState) -> list[str]:
     # Invariant 2: Chip conservation (table total constant)
     # Sum of (stack + committed_total) for all players should be constant
     # (unless rake is taken, which we assume is 0 for now)
-    total_chips = sum(
-        (player.stack + player.committed_total)
-        for player in state.seats
-        if player is not None
-    )
+    sum((player.stack + player.committed_total) for player in state.seats if player is not None)
     # This is checked across state transitions in property tests
 
     # Invariant 3: Pot correctness at terminal state
@@ -70,15 +66,6 @@ def check_all_invariants(state: GameState) -> list[str]:
                     )
 
     # Invariant 6: Street progression consistency
-    street_order = [
-        Street.WAITING,
-        Street.PREFLOP,
-        Street.FLOP,
-        Street.TURN,
-        Street.RIVER,
-        Street.SHOWDOWN,
-        Street.COMPLETE,
-    ]
     # This is more of a state machine check, validated in reducer
 
     return violations
@@ -132,4 +119,3 @@ def check_pot_correctness(state: GameState) -> bool:
 
     pots = build_side_pots(state)
     return validate_pot_invariant(state, pots)
-

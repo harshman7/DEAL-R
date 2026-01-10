@@ -2,11 +2,9 @@
 
 from collections import defaultdict
 from time import time
-from typing import Optional
 
-from fastapi import Request, HTTPException, status
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+from fastapi import HTTPException, Request, status
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from server.config import settings
@@ -32,10 +30,11 @@ def get_rate_limit_key(request: Request) -> str:
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         from server.services.auth import get_player_id
+
         player_id = get_player_id(token)
         if player_id != "anonymous":
             return f"player:{player_id}"
-    
+
     # Fall back to IP address
     return get_remote_address(request)
 
@@ -53,15 +52,15 @@ def check_rate_limit(key: str, limit: int, window: int = 60) -> bool:
     """
     if not settings.rate_limit_enabled:
         return True
-    
+
     now = time()
     # Clean old entries
     _rate_limit_storage[key] = [t for t in _rate_limit_storage[key] if now - t < window]
-    
+
     # Check limit
     if len(_rate_limit_storage[key]) >= limit:
         return False
-    
+
     # Record request
     _rate_limit_storage[key].append(now)
     return True
@@ -79,13 +78,12 @@ async def rate_limit_middleware(request: Request, call_next):
     """
     key = get_rate_limit_key(request)
     limit = settings.rate_limit_per_minute
-    
+
     if not check_rate_limit(key, limit, window=60):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Rate limit exceeded: {limit} requests per minute",
         )
-    
+
     response = await call_next(request)
     return response
-

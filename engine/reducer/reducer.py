@@ -8,7 +8,6 @@ emits events. State is derived by applying events in order.
 from __future__ import annotations
 
 import time
-from typing import Optional
 
 from engine.domain.commands import Act, ActionType, Command, RevealSeed, SitDown, StandUp, StartHand
 from engine.domain.events import (
@@ -27,23 +26,19 @@ from engine.domain.events import (
     StreetDealt,
 )
 from engine.domain.state import GameState, PlayerStatus, Street
-from engine.domain.types import Money, SeatId
-from engine.eval.evaluator import rank_hands, split_pot
+from engine.reducer.autoadvance import check_auto_advance
 from engine.rules.legality import (
     calculate_action_amount,
     get_call_amount,
-    get_min_raise_amount,
     is_betting_round_complete,
     is_raise_reopening,
     next_player_to_act,
     validate_action,
 )
-from engine.rules.sidepots import build_side_pots
-from engine.reducer.autoadvance import check_auto_advance
 
 
 def next_state(
-    state: GameState, command: Command, deck: Optional[object] = None
+    state: GameState, command: Command, deck: object | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Process a command and return new state + events.
 
@@ -87,11 +82,11 @@ def _handle_sit_down(
         raise ValueError(f"Seat {command.seat_id} is already occupied")
     if command.stack <= 0:
         raise ValueError("Stack must be positive")
-    
+
     # Enforce 6 player max per table
     seated_count = sum(1 for seat in state.seats if seat is not None)
     if seated_count >= 6:
-        raise ValueError(f"Table is full (max 6 players). Please join a different table.")
+        raise ValueError("Table is full (max 6 players). Please join a different table.")
 
     event = PlayerSatDown(
         timestamp=timestamp,
@@ -120,26 +115,31 @@ def _handle_stand_up(
 
 
 def _handle_start_hand(
-    state: GameState, command: StartHand, timestamp: float, deck: Optional[object] = None
+    state: GameState, command: StartHand, timestamp: float, deck: object | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle StartHand command."""
     if state.street != Street.WAITING:
         raise ValueError(f"Cannot start hand: current street is {state.street}")
-    
+
     # Count seated players (any non-null seat)
+    # Before hand starts, all seated players should have status ACTIVE
     seated_players = [p for p in state.seats if p is not None]
     if len(seated_players) < 2:
         raise ValueError("Need at least 2 seated players to start hand")
 
-    # Find active players and assign positions
-    # Before hand starts, all seated players should be ACTIVE
+    # Find active players for button/blind assignment
+    # Filter for ACTIVE status (should be all seated players, but check anyway)
     active_seats = [
-        i for i, player in enumerate(state.seats) 
+        i
+        for i, player in enumerate(state.seats)
         if player is not None and player.status == PlayerStatus.ACTIVE
     ]
 
+    # Use seated_players count, but active_seats for positions (they should match)
     if len(active_seats) < 2:
-        raise ValueError("Need at least 2 active players to start hand")
+        raise ValueError(
+            f"Need at least 2 active players to start hand (found {len(active_seats)} active out of {len(seated_players)} seated)"
+        )
 
     # Simple button rotation (for now, just use first active seat)
     # TODO: Proper button rotation in Phase 5
@@ -158,7 +158,7 @@ def _handle_start_hand(
 
     new_state = apply_event(state, event)
     events = [event]
-    
+
     # SIMPLE: Deal hole cards directly to players if deck is provided
     if deck is not None:
         updated_seats = list(new_state.seats)
@@ -174,24 +174,29 @@ def _handle_start_hand(
                 print(f"[Reducer] Dealt cards to seat {seat_id}: {hole_cards[0]}, {hole_cards[1]}")
         new_state = new_state.model_copy(update={"seats": updated_seats})
         print(f"[Reducer] Dealt cards to {len(active_seats)} players")
-    
+
     # Post blinds
     from engine.domain.events import BlindPosted
-    sb_event = BlindPosted(timestamp=timestamp, seat_id=sb_seat, amount=state.small_blind, blind_type="SB")
+
+    sb_event = BlindPosted(
+        timestamp=timestamp, seat_id=sb_seat, amount=state.small_blind, blind_type="SB"
+    )
     new_state = apply_event(new_state, sb_event)
     events.append(sb_event)
-    
-    bb_event = BlindPosted(timestamp=timestamp, seat_id=bb_seat, amount=state.big_blind, blind_type="BB")
+
+    bb_event = BlindPosted(
+        timestamp=timestamp, seat_id=bb_seat, amount=state.big_blind, blind_type="BB"
+    )
     new_state = apply_event(new_state, bb_event)
     events.append(bb_event)
-    
+
     # Set initial to_act_seat (after BB, action starts with UTG)
     if len(active_seats) > 2:
         to_act_seat = active_seats[3 % len(active_seats)]
     else:
         to_act_seat = button_seat  # Heads-up: button acts first
     new_state = new_state.model_copy(update={"to_act_seat": to_act_seat})
-    
+
     return new_state, events
 
 
@@ -211,7 +216,7 @@ def _handle_reveal_seed(
 
 
 def _handle_act(
-    state: GameState, command: Act, timestamp: float, deck: Optional[object] = None
+    state: GameState, command: Act, timestamp: float, deck: object | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle Act command with full legality validation."""
     # Validate action
@@ -276,9 +281,7 @@ def _handle_act(
     # Check if betting round is complete
     events = [event]
     if is_betting_round_complete(new_state):
-        events.append(
-            BettingRoundComplete(timestamp=timestamp, street=new_state.street)
-        )
+        events.append(BettingRoundComplete(timestamp=timestamp, street=new_state.street))
 
     # Auto-advance: check if game should progress automatically
     if deck is not None:
@@ -286,6 +289,7 @@ def _handle_act(
         advance_state, advance_events = check_auto_advance(new_state, deck)
         # Update timestamps (events are frozen, recreate with correct timestamp)
         from dataclasses import replace
+
         advance_events = [replace(e, timestamp=timestamp) for e in advance_events]
         new_state = advance_state
         events.extend(advance_events)
@@ -476,4 +480,3 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     # Unknown event type - return state unchanged
     return state
-

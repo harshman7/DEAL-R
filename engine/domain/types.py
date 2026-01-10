@@ -5,7 +5,6 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Optional
 
 
 class Rank(IntEnum):
@@ -78,16 +77,12 @@ class Deck:
 
     cards: list[Card] = field(default_factory=list)
     cursor: int = 0
-    _seed: Optional[int] = field(default=None, repr=False)
+    _seed: int | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize a full 52-card deck if not provided."""
         if not self.cards:
-            self.cards = [
-                Card(rank=rank, suit=suit)
-                for suit in Suit
-                for rank in Rank
-            ]
+            self.cards = [Card(rank=rank, suit=suit) for suit in Suit for rank in Rank]
 
     @classmethod
     def create_shuffled(cls, seed: int) -> Deck:
@@ -133,7 +128,6 @@ class Deck:
         """Reset cursor to beginning (for replay/testing)."""
         self.cursor = 0
 
-    def get_seed(self) -> Optional[int]:
+    def get_seed(self) -> int | None:
         """Get the seed used for shuffling (if any)."""
         return self._seed
-

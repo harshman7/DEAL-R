@@ -8,7 +8,6 @@ Usage:
 import argparse
 import sys
 from datetime import datetime
-from typing import Optional
 
 from engine.domain.state import GameState
 from engine.domain.types import Card
@@ -37,7 +36,7 @@ def format_card(card: Card) -> str:
     return f"{rank_map[card.rank.value]}{suit_map[card.suit.value]}"
 
 
-def export_hand_history(hand_id: str, db_url: str, output_file: Optional[str] = None):
+def export_hand_history(hand_id: str, db_url: str, output_file: str | None = None):
     """Export hand history in human-readable format.
 
     Args:
@@ -73,14 +72,16 @@ def export_hand_history(hand_id: str, db_url: str, output_file: Optional[str] = 
             event_type = type(event).__name__
 
             if event_type == "HandStarted":
-                output.write(f"*** HAND STARTED ***\n")
+                output.write("*** HAND STARTED ***\n")
                 output.write(f"Button: Seat {event.button_seat}\n")
                 output.write(f"Small Blind: Seat {event.sb_seat}\n")
                 output.write(f"Big Blind: Seat {event.bb_seat}\n")
                 output.write("\n")
 
             elif event_type == "PlayerSatDown":
-                output.write(f"Seat {event.seat_id}: {event.player_id} sits down with {event.stack} chips\n")
+                output.write(
+                    f"Seat {event.seat_id}: {event.player_id} sits down with {event.stack} chips\n"
+                )
 
             elif event_type == "BlindPosted":
                 output.write(f"Seat {event.seat_id}: posts {event.blind_type} {event.amount}\n")
@@ -101,12 +102,12 @@ def export_hand_history(hand_id: str, db_url: str, output_file: Optional[str] = 
                     output.write(f"\n*** {street_name} *** [{cards_str}]\n")
 
             elif event_type == "ShowdownResolved":
-                output.write(f"\n*** SHOWDOWN ***\n")
+                output.write("\n*** SHOWDOWN ***\n")
                 for seat_id, amount in event.winners.items():
                     output.write(f"Seat {seat_id} wins {amount}\n")
 
             elif event_type == "HandEnded":
-                output.write(f"\n*** HAND ENDED ***\n")
+                output.write("\n*** HAND ENDED ***\n")
                 output.write(f"Reason: {event.reason}\n")
                 if event.winner_seat is not None:
                     output.write(f"Winner: Seat {event.winner_seat}\n")
@@ -147,4 +148,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -7,9 +7,8 @@ by applying events in order. Events are immutable and serializable.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
-from engine.domain.state import PlayerStatus, Street
+from engine.domain.state import Street
 from engine.domain.types import Card, Money, SeatId
 
 
@@ -108,7 +107,7 @@ class ActionApplied(DomainEvent):
 
     seat_id: SeatId
     action_type: str  # "FOLD", "CHECK", "CALL", "BET", "RAISE"
-    amount: Optional[Money]
+    amount: Money | None
     chips_committed: Money
     new_stack: Money
 
@@ -171,6 +170,5 @@ class HandEnded(DomainEvent):
         reason: "SHOWDOWN", "FOLD", etc.
     """
 
-    winner_seat: Optional[SeatId]
+    winner_seat: SeatId | None
     reason: str
-

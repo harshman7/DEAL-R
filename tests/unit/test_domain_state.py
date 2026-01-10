@@ -129,4 +129,3 @@ class TestGameState:
         # Serialize and verify
         data = state.model_dump()
         assert len([s for s in data["seats"] if s is not None]) == 2
-

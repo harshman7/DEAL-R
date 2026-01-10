@@ -1,7 +1,5 @@
 """Table management service for multi-table support."""
 
-from typing import Dict, List, Optional
-
 from server.persistence.event_store import EventStore
 from server.services.table_service import TableService
 
@@ -16,7 +14,7 @@ class TableManager:
             event_store: Event store instance
         """
         self.event_store = event_store
-        self._tables: Dict[str, TableService] = {}
+        self._tables: dict[str, TableService] = {}
 
     def get_table(self, table_id: str) -> TableService:
         """Get or create a table service.
@@ -31,7 +29,7 @@ class TableManager:
             self._tables[table_id] = TableService(self.event_store, table_id=table_id)
         return self._tables[table_id]
 
-    def list_tables(self) -> List[str]:
+    def list_tables(self) -> list[str]:
         """List all active tables.
 
         Returns:
@@ -49,4 +47,3 @@ class TableManager:
             True if table exists
         """
         return table_id in self._tables
-

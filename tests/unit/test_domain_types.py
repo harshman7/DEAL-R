@@ -131,4 +131,3 @@ class TestDeck:
         # Should get same cards
         assert dealt1 == dealt2
         assert deck2.cursor == cursor_after
-

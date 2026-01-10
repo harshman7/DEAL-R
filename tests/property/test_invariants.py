@@ -1,12 +1,11 @@
 """Property-based tests for game invariants."""
 
 import time
-from typing import Optional
 
-import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from engine.domain.commands import Act, ActionType, SitDown, StartHand
+from engine.domain.commands import Act, ActionType, SitDown
 from engine.domain.state import GameState, PlayerStatus, Street
 from engine.domain.types import Deck
 from engine.reducer.reducer import apply_event, next_state
@@ -74,7 +73,7 @@ def valid_action_sequence(draw, state: GameState):
         action_type = draw(st.sampled_from(list(legal_actions)))
 
         # Generate amount if needed
-        amount: Optional[int] = None
+        amount: int | None = None
         if action_type in (ActionType.BET, ActionType.RAISE):
             from engine.rules.legality import get_call_amount, get_min_raise_amount
 
@@ -125,9 +124,7 @@ class TestInvariants:
     def test_chip_conservation_initial(self, state: GameState):
         """Property: Chips are conserved in initial state."""
         initial_total = sum(
-            (player.stack + player.committed_total)
-            for player in state.seats
-            if player is not None
+            (player.stack + player.committed_total) for player in state.seats if player is not None
         )
         assert check_chip_conservation(initial_total, state)
 
@@ -136,9 +133,7 @@ class TestInvariants:
     def test_invariants_after_simple_actions(self, state: GameState):
         """Property: Invariants hold after simple action sequences."""
         initial_total = sum(
-            (player.stack + player.committed_total)
-            for player in state.seats
-            if player is not None
+            (player.stack + player.committed_total) for player in state.seats if player is not None
         )
 
         current_state = state
@@ -164,7 +159,9 @@ class TestInvariants:
                 break
 
             # Pick a simple action (prefer CHECK/CALL over BET/RAISE for simplicity)
-            action_type = ActionType.CHECK if ActionType.CHECK in legal_actions else list(legal_actions)[0]
+            action_type = (
+                ActionType.CHECK if ActionType.CHECK in legal_actions else list(legal_actions)[0]
+            )
             amount = None
             if action_type in (ActionType.BET, ActionType.RAISE):
                 from engine.rules.legality import get_call_amount, get_min_raise_amount
@@ -215,7 +212,6 @@ class TestDeterministicReplay:
     def test_replay_produces_identical_state(self):
         """Test that replaying events produces identical final state."""
         state = GameState(num_seats=6)
-        deck = Deck.create_shuffled(42)
 
         # Seat players
         state, events1 = next_state(
@@ -255,9 +251,8 @@ class TestDeterministicReplay:
     def test_replay_invariant_property(self, initial_state: GameState):
         """Property: Replaying event log yields identical final state."""
         # Generate action sequence
-        actions = []
         current_state = initial_state
-        deck = Deck.create_shuffled(42)
+        deck = Deck.create_shuffled(42)  # Seed deck for deterministic dealing
 
         # Collect all events
         all_events = []
@@ -316,9 +311,7 @@ class TestDeterministicReplay:
             replay_state = apply_event(replay_state, event)
 
         # Final states should be identical (at least for key properties)
-        assert (
-            current_state.count_active_players() == replay_state.count_active_players()
-        )
+        assert current_state.count_active_players() == replay_state.count_active_players()
         for i in range(len(current_state.seats)):
             player1 = current_state.get_player(i)
             player2 = replay_state.get_player(i)
@@ -330,4 +323,3 @@ class TestDeterministicReplay:
             assert (
                 player1.committed_total == player2.committed_total
             ), f"Committed total mismatch at seat {i}"
-

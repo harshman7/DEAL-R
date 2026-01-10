@@ -9,8 +9,6 @@ This module contains pure functions for:
 
 from __future__ import annotations
 
-from typing import Optional
-
 from engine.domain.commands import ActionType
 from engine.domain.state import GameState, PlayerStatus, Street
 from engine.domain.types import Money, SeatId
@@ -141,7 +139,7 @@ def validate_action(
     state: GameState,
     seat_id: SeatId,
     action_type: ActionType,
-    amount: Optional[Money] = None,
+    amount: Money | None = None,
 ) -> tuple[bool, str]:
     """Validate if an action is legal and return (is_valid, error_message).
 
@@ -222,7 +220,7 @@ def calculate_action_amount(
     state: GameState,
     seat_id: SeatId,
     action_type: ActionType,
-    requested_amount: Optional[Money] = None,
+    requested_amount: Money | None = None,
 ) -> Money:
     """Calculate the actual amount to commit for an action.
 
@@ -267,7 +265,7 @@ def calculate_action_amount(
     raise ValueError(f"Unknown action type: {action_type}")
 
 
-def next_player_to_act(state: GameState) -> Optional[SeatId]:
+def next_player_to_act(state: GameState) -> SeatId | None:
     """Find the next player who should act.
 
     Args:
@@ -326,8 +324,7 @@ def is_betting_round_complete(state: GameState) -> bool:
     active_players = [
         (i, player)
         for i, player in enumerate(state.seats)
-        if player is not None
-        and player.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN)
+        if player is not None and player.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN)
     ]
 
     if len(active_players) <= 1:
@@ -367,4 +364,3 @@ def is_betting_round_complete(state: GameState) -> bool:
 
     # No aggressor - round is complete if everyone has acted
     return next_player_to_act(state) is None
-

@@ -33,7 +33,7 @@ def build_side_pots(state: GameState) -> list[Pot]:
         Player A: committed_total = 1000
         Player B: committed_total = 500
         Player C: committed_total = 500
-        
+
         Creates:
         - Main pot: 500 * 3 = 1500 (all eligible)
         - Side pot: 500 * 1 = 500 (only A eligible)
@@ -56,9 +56,7 @@ def build_side_pots(state: GameState) -> list[Pot]:
 
     for level in commitment_levels:
         # Find eligible players (committed >= this level)
-        eligible_seats = {
-            seat_id for seat_id, committed in active_players if committed >= level
-        }
+        eligible_seats = {seat_id for seat_id, committed in active_players if committed >= level}
 
         if not eligible_seats:
             continue
@@ -116,10 +114,7 @@ def get_pot_distribution(state: GameState) -> dict[SeatId, list[int]]:
         if player is None:
             continue
 
-        eligible_pots = [
-            i for i, pot in enumerate(pots) if seat_id in pot.eligible_seats
-        ]
+        eligible_pots = [i for i, pot in enumerate(pots) if seat_id in pot.eligible_seats]
         distribution[seat_id] = eligible_pots
 
     return distribution
-
