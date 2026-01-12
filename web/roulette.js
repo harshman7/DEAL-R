@@ -31,6 +31,13 @@ class RouletteUI {
                 }
             });
             
+            if (response.status === 401) {
+                // Token expired or invalid, redirect to login
+                console.log('[Roulette] Token expired, redirecting to login');
+                this.logout();
+                return;
+            }
+            
             if (!response.ok) {
                 throw new Error('Failed to load player info');
             }
@@ -76,8 +83,15 @@ class RouletteUI {
                 }
             });
             
+            if (response.status === 401) {
+                // Token expired or invalid, redirect to login
+                console.log('[Roulette] Token expired, redirecting to login');
+                this.logout();
+                return;
+            }
+            
             if (!response.ok) {
-                const error = await response.json();
+                const error = await response.json().catch(() => ({ detail: 'Spin failed' }));
                 throw new Error(error.detail || 'Spin failed');
             }
             

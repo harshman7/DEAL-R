@@ -118,6 +118,11 @@ class GameState(BaseModel):
     seed_commit: str | None = Field(default=None, description="Committed seed hash (before reveal)")
     seed_reveal: int | None = Field(default=None, description="Revealed seed (after commit phase)")
 
+    # Hand results (stored after hand ends, cleared when new hand starts)
+    last_hand_results: dict[SeatId, Money] | None = Field(
+        default=None, description="Winners from last completed hand (seat_id -> amount won)"
+    )
+
     model_config = {
         "arbitrary_types_allowed": True,
     }

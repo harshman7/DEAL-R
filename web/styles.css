@@ -27,7 +27,7 @@ body {
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    padding-bottom: 120px; /* Space for bottom cards */
+    padding-bottom: 320px; /* Space for nav bar (56px) + action panel (200px) + cards area (64px) */
 }
 
 /* Top Bar */
@@ -155,27 +155,49 @@ body {
     min-height: 200px;
 }
 
+.street-display {
+    font-size: 48px;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    margin-bottom: 16px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+    padding: 12px 24px;
+    background: rgba(74, 158, 255, 0.1);
+    border-radius: 12px;
+    border: 2px solid rgba(74, 158, 255, 0.3);
+}
+
 .community-cards {
     display: flex;
-    gap: 8px;
+    gap: 12px;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
+    min-height: 100px;
+    padding: 16px;
 }
 
 .card {
-    width: 50px;
-    height: 70px;
+    width: 60px;
+    height: 84px;
     background: var(--bg-card);
     border: 2px solid var(--border);
-    border-radius: 8px;
+    border-radius: 10px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 6px;
+    padding: 8px;
     font-weight: 700;
-    font-size: 11px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .card.red {
@@ -187,13 +209,13 @@ body {
 }
 
 .card-rank {
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1;
-    font-weight: 700;
+    font-weight: 800;
 }
 
 .card-suit {
-    font-size: 18px;
+    font-size: 24px;
     text-align: center;
     line-height: 1;
 }
@@ -262,14 +284,16 @@ body {
 /* Action Panel */
 .action-panel {
     position: fixed;
-    bottom: 0;
+    bottom: 56px; /* Above nav bar (12px padding * 2 + 32px height ≈ 56px) */
     left: 0;
     right: 0;
     background: var(--bg-secondary);
     border-top: 2px solid var(--border);
     padding: 16px;
-    z-index: 1000;
+    z-index: 1001;
     box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.5);
+    max-height: 200px; /* Limit height */
+    overflow-y: auto;
 }
 
 .action-info {
@@ -358,16 +382,15 @@ body {
 /* Player Cards Area (Bottom) */
 .player-cards-area {
     position: fixed;
-    bottom: 0;
+    bottom: 260px; /* Above action panel and nav bar (56px nav + ~200px action panel max) */
     left: 0;
     right: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 16px;
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border);
-    z-index: 999;
+    background: transparent; /* Make transparent so it doesn't block */
+    z-index: 1002; /* Above action panel and nav bar */
 }
 
 .your-cards {
@@ -442,6 +465,162 @@ body {
     padding: 0;
     width: 24px;
     height: 24px;
+}
+
+/* Results Panel */
+.results-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-secondary);
+    border: 3px solid var(--accent);
+    border-radius: 20px;
+    padding: 32px 24px;
+    z-index: 2000;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+    max-width: 90%;
+    width: 400px;
+    max-height: 80vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.results-header {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-primary);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+
+.results-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.results-winners {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.winner-announcement {
+    text-align: center;
+    padding: 24px;
+    background: rgba(74, 158, 255, 0.1);
+    border-radius: 16px;
+    border: 2px solid rgba(74, 158, 255, 0.3);
+}
+
+.winner-announcement.you-win {
+    background: rgba(74, 158, 255, 0.2);
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(74, 158, 255, 0.4);
+}
+
+.winner-label {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.winner-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.winner-amount {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--accent);
+    text-shadow: 0 2px 8px rgba(74, 158, 255, 0.3);
+}
+
+.winners-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.winner-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: rgba(74, 158, 255, 0.1);
+    border-radius: 12px;
+    border: 2px solid rgba(74, 158, 255, 0.2);
+}
+
+.winner-item.you-win {
+    background: rgba(74, 158, 255, 0.2);
+    border-color: var(--accent);
+}
+
+.winner-item .winner-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.winner-item .winner-amount {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 0;
+}
+
+.results-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.results-btn {
+    flex: 1;
+    padding: 16px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.results-btn.primary {
+    background: var(--accent);
+    color: white;
+    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
+}
+
+.results-btn.primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(74, 158, 255, 0.5);
+}
+
+.results-btn.secondary {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 2px solid var(--border);
+}
+
+.results-btn.secondary:hover {
+    background: var(--bg-secondary);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 /* Navigation Bar */

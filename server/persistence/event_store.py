@@ -257,6 +257,9 @@ class EventStore:
 
     def _serialize_event(self, event: DomainEvent) -> str:
         """Serialize event to JSON."""
+        from engine.domain.types import Card
+        from engine.domain.state import Street
+        
         # Simple serialization - in production, use proper event serialization
         data = {
             "type": type(event).__name__,
@@ -265,11 +268,29 @@ class EventStore:
         # Add event-specific fields
         for field_name, field_value in event.__dict__.items():
             if field_name != "timestamp":
-                # Handle special types
-                if hasattr(field_value, "__dict__"):
-                    data[field_name] = str(field_value)
+                # Handle Card objects (single or in tuple/list)
+                if isinstance(field_value, Card):
+                    data[field_name] = {"rank": field_value.rank.value, "suit": field_value.suit.value}
+                elif isinstance(field_value, (tuple, list)):
+                    # Check if it's a tuple/list of Card objects (e.g., StreetDealt.cards)
+                    if field_value and isinstance(field_value[0], Card):
+                        data[field_name] = [
+                            {"rank": card.rank.value, "suit": card.suit.value} for card in field_value
+                        ]
+                    else:
+                        # Regular tuple/list - convert to list
+                        data[field_name] = list(field_value) if isinstance(field_value, tuple) else field_value
+                elif isinstance(field_value, Street):
+                    # Street enum
+                    data[field_name] = field_value.value
+                elif hasattr(field_value, "value") and hasattr(field_value, "__class__"):
+                    # Other enums (Rank, Suit, etc.)
+                    data[field_name] = field_value.value
                 elif isinstance(field_value, (set, frozenset)):
                     data[field_name] = list(field_value)
+                elif hasattr(field_value, "__dict__") and not isinstance(field_value, (str, int, float, bool, type(None))):
+                    # Complex objects - convert to string as fallback
+                    data[field_name] = str(field_value)
                 else:
                     data[field_name] = field_value
         return json.dumps(data)
@@ -339,9 +360,14 @@ class EventStore:
             elif k == "winners" and isinstance(v, dict):
                 kwargs[k] = {int(k2): int(v2) for k2, v2 in v.items()}
             elif k == "cards" and isinstance(v, list):
-                # Cards would need proper deserialization
-                # For now, skip (cards are server-only anyway)
-                continue
+                # Deserialize Card objects from JSON
+                from engine.domain.types import Card, Rank, Suit
+                cards = []
+                for card_data in v:
+                    if isinstance(card_data, dict) and "rank" in card_data and "suit" in card_data:
+                        card = Card(rank=Rank(card_data["rank"]), suit=Suit(card_data["suit"]))
+                        cards.append(card)
+                kwargs[k] = tuple(cards)
             else:
                 kwargs[k] = v
 

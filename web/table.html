@@ -23,12 +23,23 @@
 
     <!-- Community Cards Area -->
     <div class="community-area">
+        <div class="street-display" id="streetDisplay" style="display: none;"></div>
         <div class="community-cards" id="communityCards">
             <!-- Cards will be inserted here -->
         </div>
         <div class="pot-display" id="potDisplay">
             <span class="pot-label">Pot</span>
             <span class="pot-value" id="potValue">$0</span>
+        </div>
+    </div>
+
+    <!-- Results Display (after hand completion) -->
+    <div class="results-panel" id="resultsPanel" style="display: none;">
+        <div class="results-header">Hand Results</div>
+        <div class="results-content" id="resultsContent"></div>
+        <div class="results-actions">
+            <button class="results-btn primary" id="newHandBtn" onclick="window.pokerUI.startHand()">Start New Hand</button>
+            <button class="results-btn secondary" id="leaveTableBtn" onclick="window.pokerUI.leaveTable()">Leave Table</button>
         </div>
     </div>
 

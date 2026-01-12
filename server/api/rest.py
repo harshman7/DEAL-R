@@ -207,10 +207,10 @@ async def get_player_info(player_id: str = Depends(get_current_player)):
 @router.post(
     "/players/update-chips",
     summary="Update player chips",
-    description="Update player chip balance.",
+    description="Update player chip balance by adding/subtracting an amount.",
 )
 async def update_player_chips(
-    amount: int,
+    amount: int = Query(..., description="Chip amount to add (can be negative for losses)"),
     player_id: str = Depends(get_current_player),
 ):
     """Update player chips (can be negative for losses)."""
@@ -228,8 +228,38 @@ async def update_player_chips(
     user["chips"] = new_chips
 
     save_users_db(users_db)
+    
+    print(f"[API] Updated chips for {player_id} ({username}): {current_chips} + {amount} = {new_chips}")
 
     return {"player_id": player_id, "chips": new_chips}
+
+
+@router.post(
+    "/players/set-chips",
+    summary="Set player chips",
+    description="Set player chip balance to a specific amount.",
+)
+async def set_player_chips(
+    chips: int = Query(..., ge=0, description="New chip balance"),
+    player_id: str = Depends(get_current_player),
+):
+    """Set player chips to a specific amount."""
+    from server.api.auth import load_users_db, save_users_db
+
+    users_db = load_users_db()
+    username = player_id.replace("player_", "")
+    user = users_db.get(username)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Player not found")
+
+    old_chips = user.get("chips", 1000)
+    user["chips"] = chips
+    save_users_db(users_db)
+    
+    print(f"[API] Set chips for {player_id} ({username}): {old_chips} -> {chips}")
+
+    return {"player_id": player_id, "chips": chips}
 
 
 @router.get(

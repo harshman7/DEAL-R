@@ -4,7 +4,7 @@ import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from engine.domain.commands import Act, ActionType, SitDown, StartHand
+from engine.domain.commands import Act, ActionType, SitDown, StandUp, StartHand
 from engine.domain.state import GameState
 from server.api.schemas import ActRequest, SitDownRequest, StartHandRequest
 from server.services.table_service import TableService
@@ -107,6 +107,7 @@ class ConnectionManager:
                         {"amount": pot.amount, "eligible_seats": sorted(pot.eligible_seats)}
                         for pot in state.pots
                     ],
+                    "last_hand_results": state.last_hand_results,
                 },
             }
 
@@ -184,14 +185,45 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
 
     try:
         # Send initial state with full table data
-        # Force reload to get latest state from events
+        # Force reload to get latest state from events (will re-deal cards if hand started)
         service.current_state = None  # Invalidate cache
         state = service.get_state()
+        
+        # Build pots from committed chips if hand is active and pots are empty
+        if state.street.value not in ("WAITING", "COMPLETE"):
+            from engine.rules.sidepots import build_side_pots
+            
+            # Build pots from player commitments
+            pots = build_side_pots(state)
+            if pots:
+                state = state.model_copy(update={"pots": pots})
+                service.current_state = state
 
         # Get current version
         event_stream_id = service.hand_id or f"table-{service.table_id}"
         current_version = service.event_store.get_current_version(event_stream_id)
         seated_count = sum(1 for seat in state.seats if seat is not None)
+
+        # If hand has completed (street is WAITING with last_hand_results), ensure chips are synced
+        # This handles the case where a player reconnects after a hand ends
+        if state.street.value == "WAITING" and state.last_hand_results:
+            print(f"[WS] Initial connection: Hand has completed, syncing chips for seated players")
+            from server.api.auth import load_users_db, save_users_db
+            for seat in state.seats:
+                if seat is not None and seat.player_id and seat.stack is not None:
+                    try:
+                        users_db = load_users_db()
+                        username = seat.player_id.replace("player_", "")
+                        user = users_db.get(username)
+                        
+                        if user:
+                            old_chips = user.get("chips", 1000)
+                            if old_chips != seat.stack:
+                                user["chips"] = seat.stack
+                                save_users_db(users_db)
+                                print(f"[WS] Synced chips for {seat.player_id} ({username}): {old_chips} -> {seat.stack}")
+                    except Exception as e:
+                        print(f"[WS] Error syncing chips for {seat.player_id} on initial connect: {e}")
 
         print(
             f"[WS] Sending initial state to {player_id} on table {table_id}: {seated_count} players, version {current_version}"
@@ -221,6 +253,13 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                 "hand_id": state.hand_id,
                 "street": state.street.value,
                 "current_bet": state.current_bet,
+                "to_act_seat": state.to_act_seat,
+                "min_raise": state.min_raise,
+                "small_blind": state.small_blind,
+                "big_blind": state.big_blind,
+                "button_seat": state.button_seat,
+                "sb_seat": state.sb_seat,
+                "bb_seat": state.bb_seat,
                 "seats": serialized_seats,
                 "community_cards": [
                     {"rank": c.rank.value, "suit": c.suit.value} for c in state.community_cards
@@ -229,6 +268,7 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                     {"amount": pot.amount, "eligible_seats": sorted(pot.eligible_seats)}
                     for pot in state.pots
                 ],
+                "last_hand_results": state.last_hand_results,
             },
         }
 
@@ -366,14 +406,52 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                 # Events are included in state broadcast below
                 # No need to broadcast individual events
 
-                # Also broadcast updated state after events
-                # Force reload to get latest state
-                service.current_state = None  # Invalidate cache
-                updated_state = service.get_state()
+                # Use the new_state directly (already has cards dealt from process_command)
+                updated_state = new_state
+                
+                # Build pots from committed chips if hand is active and pots are empty
+                if updated_state.street.value not in ("WAITING", "COMPLETE"):
+                    from engine.rules.sidepots import build_side_pots
+                    
+                    # Build pots from player commitments
+                    pots = build_side_pots(updated_state)
+                    if pots:
+                        updated_state = updated_state.model_copy(update={"pots": pots})
+                
+                # Update cache to avoid unnecessary reloads
+                service.current_state = updated_state
+
+                # Check if hand just ended (HandEnded event in events or street is WAITING with last_hand_results)
+                # If so, update player chips in their accounts
+                from engine.domain.events import HandEnded
+                hand_ended = any(isinstance(e, HandEnded) for e in events)
+                if hand_ended or (updated_state.street.value == "WAITING" and updated_state.last_hand_results):
+                    print(f"[WS] Hand ended, updating player chips for all seated players")
+                    # Update chips for all seated players
+                    for seat in updated_state.seats:
+                        if seat is not None and seat.player_id and seat.stack is not None:
+                            try:
+                                # Import here to avoid circular imports
+                                from server.api.auth import load_users_db, save_users_db
+                                users_db = load_users_db()
+                                username = seat.player_id.replace("player_", "")
+                                user = users_db.get(username)
+                                
+                                if user:
+                                    old_chips = user.get("chips", 1000)
+                                    user["chips"] = seat.stack
+                                    save_users_db(users_db)
+                                    print(f"[WS] Updated chips for {seat.player_id} ({username}): {old_chips} -> {seat.stack}")
+                                else:
+                                    print(f"[WS] Warning: User {username} not found in database")
+                            except Exception as e:
+                                print(f"[WS] Error updating chips for {seat.player_id}: {e}")
+                                import traceback
+                                traceback.print_exc()
 
                 # Get current version for state message
                 event_stream_id = service.hand_id or f"table-{service.table_id}"
-                current_version = service.event_store.get_current_version(event_stream_id)
+                current_version = new_version  # Use the version returned from process_command
 
                 # Count seated players for logging
                 seated_count = sum(1 for seat in updated_state.seats if seat is not None)
@@ -382,6 +460,24 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                     for seat in updated_state.seats
                     if seat is not None and seat.player_id
                 ]
+
+                # Serialize seats with hole_cards for the sender (similar to broadcast logic)
+                sender_player_id = manager.connection_player_ids.get(websocket, "anonymous")
+                serialized_seats = []
+                for seat in updated_state.seats:
+                    if seat is None:
+                        serialized_seats.append(None)
+                    else:
+                        seat_data = seat.model_dump_public()
+                        # Include hole_cards if they exist (for debugging, show to all; in production, filter by player_id)
+                        if seat.hole_cards:
+                            seat_data["hole_cards"] = [
+                                {"rank": c.rank.value, "suit": c.suit.value} for c in seat.hole_cards
+                            ]
+                            print(
+                                f"[WS] ✓ State message: Including hole_cards for seat {seat.seat_id} (player_id={seat.player_id}, sender_player_id={sender_player_id}): {seat_data['hole_cards']}"
+                            )
+                        serialized_seats.append(seat_data)
 
                 state_message = {
                     "type": "state",
@@ -397,10 +493,7 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                         "button_seat": updated_state.button_seat,
                         "sb_seat": updated_state.sb_seat,
                         "bb_seat": updated_state.bb_seat,
-                        "seats": [
-                            seat.model_dump_public() if seat else None
-                            for seat in updated_state.seats
-                        ],
+                        "seats": serialized_seats,
                         "community_cards": [
                             {"rank": c.rank.value, "suit": c.suit.value}
                             for c in updated_state.community_cards
@@ -409,16 +502,17 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                             {"amount": pot.amount, "eligible_seats": sorted(pot.eligible_seats)}
                             for pot in updated_state.pots
                         ],
+                        "last_hand_results": updated_state.last_hand_results,
                     },
                 }
 
                 # Broadcast to all other connections (exclude sender - they already got command_accepted and will get state next)
                 print(
-                    f"[WS] Broadcasting state to table {table_id}: {seated_count} players ({seated_player_ids}), version {current_version}"
+                    f"[WS] Broadcasting state to table {table_id}: {seated_count} players ({seated_player_ids}), version {current_version}, street={updated_state.street.value}, to_act_seat={updated_state.to_act_seat}"
                 )
-                # Send state to sender first
+                # Send state to sender first (with hole_cards included)
                 await websocket.send_json(state_message)
-                # Then broadcast to other connections
+                # Then broadcast to other connections (also includes hole_cards via broadcast method)
                 await manager.broadcast(table_id, updated_state, exclude=websocket)
 
             except ValueError as e:

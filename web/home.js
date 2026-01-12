@@ -29,6 +29,13 @@ class HomeUI {
                 }
             });
             
+            if (response.status === 401) {
+                // Token expired or invalid, redirect to login
+                console.log('[Home] Token expired, redirecting to login');
+                this.logout();
+                return;
+            }
+            
             if (response.ok) {
                 const data = await response.json();
                 this.updateUI(data);
@@ -42,6 +49,7 @@ class HomeUI {
             }
         } catch (error) {
             console.error('[Home] Error loading player data:', error);
+            // On network errors, still show default values
             this.updateUI({
                 username: this.username || 'Player',
                 chips: 1000,
