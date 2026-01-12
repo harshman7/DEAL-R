@@ -281,6 +281,7 @@ def next_player_to_act(state: GameState) -> SeatId | None:
         return None
 
     # Start from to_act_seat and find next active player who hasn't acted
+    # Skip ALL_IN players (they can't act anymore)
     start_seat = state.to_act_seat
     current_seat = start_seat
     checked_seats = set()
@@ -289,8 +290,17 @@ def next_player_to_act(state: GameState) -> SeatId | None:
         checked_seats.add(current_seat)
         player = state.get_player(current_seat)
 
+        # Only ACTIVE players can act (skip ALL_IN, FOLDED, OUT)
         if player is not None and player.status == PlayerStatus.ACTIVE:
+            # Check if player needs to act (hasn't acted this street)
             if not player.acted_this_street:
+                return current_seat
+            # If player has acted, check if they need to act again (e.g., after a raise)
+            # Player needs to act again if:
+            # 1. There's a bet (current_bet > 0)
+            # 2. Their committed_street < current_bet
+            # 3. They have chips remaining (stack > 0)
+            elif state.current_bet > 0 and player.committed_street < state.current_bet and player.stack > 0:
                 return current_seat
 
         # Move to next seat (wrap around)
@@ -335,10 +345,16 @@ def is_betting_round_complete(state: GameState) -> bool:
         # Only one or zero active players - round is complete
         return True
 
-    # Check if all active players have acted
+    # Check if all ACTIVE (non-all-in) players have acted
+    # ALL_IN players don't need to act again
     for seat_id, player in active_players:
-        if player.status == PlayerStatus.ACTIVE and not player.acted_this_street:
-            return False
+        if player.status == PlayerStatus.ACTIVE:
+            # Active player hasn't acted yet
+            if not player.acted_this_street:
+                return False
+            # Active player has acted but needs to act again (raise reopened betting)
+            if state.current_bet > 0 and player.committed_street < state.current_bet and player.stack > 0:
+                return False
 
     # Check if all active players are at the same commitment level
     # (or all-in with less)
@@ -346,12 +362,13 @@ def is_betting_round_complete(state: GameState) -> bool:
         # No betting - everyone checked
         return True
 
-    # All active players should have committed_street == current_bet
-    # (or be all-in with less)
+    # All ACTIVE players should have committed_street == current_bet
+    # (or be all-in with less, which is OK)
+    # ALL_IN players are already at their max commitment
     for seat_id, player in active_players:
         if player.status == PlayerStatus.ACTIVE:
             if player.committed_street < state.current_bet and player.stack > 0:
-                # Player hasn't called yet
+                # Player hasn't called yet and has chips
                 return False
 
     # Check if action has returned to last aggressor

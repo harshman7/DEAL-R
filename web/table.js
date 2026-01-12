@@ -298,13 +298,16 @@ class PokerUI {
             
             const isToAct = state.to_act_seat === seat.seat_id;
             const isActive = seat.status === 'ACTIVE' || seat.status === 'ALL_IN';
+            const isAllIn = seat.status === 'ALL_IN';
             const avatar = this.getAvatarEmoji(seat.player_id);
             const shortName = (seat.player_id || `Player${seat.seat_id + 1}`).replace('player_', '').substring(0, 10);
             const betBadge = seat.committed_total > 0 ? `<div class="player-bet">${seat.committed_total}</div>` : '';
+            const allInBadge = isAllIn ? '<div class="player-allin">ALL IN</div>' : '';
             
             playerItem.innerHTML = `
                 ${betBadge}
-                <div class="player-avatar ${isActive ? 'active' : ''} ${isToAct ? 'to-act' : ''}">${avatar}</div>
+                ${allInBadge}
+                <div class="player-avatar ${isActive ? 'active' : ''} ${isToAct ? 'to-act' : ''} ${isAllIn ? 'all-in' : ''}">${avatar}</div>
                 <div class="player-name">${shortName}</div>
                 <div class="player-score">${seat.stack}</div>
             `;

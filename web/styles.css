@@ -145,6 +145,27 @@ body {
     font-weight: 600;
 }
 
+.player-allin {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    background: #ff6b6b;
+    color: white;
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.5);
+    z-index: 10;
+}
+
+.player-avatar.all-in {
+    border: 3px solid #ff6b6b;
+    box-shadow: 0 0 12px rgba(255, 107, 107, 0.6);
+}
+
 /* Community Cards Area */
 .community-area {
     display: flex;
@@ -180,23 +201,23 @@ body {
 }
 
 .card {
-    width: 60px;
-    height: 84px;
+    width: 90px;
+    height: 126px;
     background: var(--bg-card);
     border: 2px solid var(--border);
-    border-radius: 10px;
+    border-radius: 15px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    padding: 8px;
+    padding: 12px;
     font-weight: 700;
-    font-size: 14px;
+    font-size: 21px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .card:hover {
-    transform: translateY(-4px);
+    transform: translateY(-6px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
@@ -209,23 +230,23 @@ body {
 }
 
 .card-rank {
-    font-size: 18px;
+    font-size: 27px;
     line-height: 1;
     font-weight: 800;
 }
 
 .card-suit {
-    font-size: 24px;
+    font-size: 36px;
     text-align: center;
     line-height: 1;
 }
 
 .card-back {
-    width: 50px;
-    height: 70px;
+    width: 75px;
+    height: 105px;
     background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
     border: 2px solid var(--border);
-    border-radius: 8px;
+    border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -236,7 +257,7 @@ body {
 .card-back::before {
     content: '★';
     color: white;
-    font-size: 24px;
+    font-size: 36px;
     opacity: 0.3;
 }
 
@@ -400,8 +421,8 @@ body {
 
 .your-cards .card,
 .your-cards .card-back {
-    width: 45px;
-    height: 63px;
+    width: 67.5px;
+    height: 94.5px;
 }
 
 .player-info-bottom {
@@ -667,12 +688,12 @@ body {
     }
     
     .card {
-        width: 60px;
-        height: 84px;
+        width: 90px;
+        height: 126px;
     }
     
     .card-back {
-        width: 60px;
-        height: 84px;
+        width: 90px;
+        height: 126px;
     }
 }

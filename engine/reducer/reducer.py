@@ -248,9 +248,13 @@ def _handle_act(
         # Calculate raise increment
         call_amount = get_call_amount(state, command.seat_id)
         raise_increment = chips_committed - call_amount
+        # Check if this raise reopens betting (including all-in raises)
         if is_raise_reopening(state, chips_committed, new_stack):
             new_min_raise = raise_increment
             new_last_raiser_seat = command.seat_id
+            # If raise reopens betting, reset acted_this_street for other active players
+            # (they need to act again)
+            # This is handled by resetting acted_this_street in the event application
 
     # Create event
     event = ActionApplied(
@@ -434,6 +438,18 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                 new_current_bet = updated_player.committed_street
                 updates["current_bet"] = new_current_bet
                 # min_raise and last_raiser_seat are handled in reducer
+                
+                # If this is a bet/raise that reopens betting, reset acted_this_street
+                # for other active players (they need to act again)
+                # Check if this raise reopens betting by comparing to previous state
+                if state.last_raiser_seat != seat_idx:  # This is a new raise
+                    # Reset acted_this_street for all other active players who haven't committed enough
+                    for i, seat in enumerate(new_seats):
+                        if i != seat_idx and seat is not None and seat.status == PlayerStatus.ACTIVE:
+                            # Only reset if they haven't committed enough yet
+                            if seat.committed_street < new_current_bet:
+                                new_seats[i] = seat.model_copy(update={"acted_this_street": False})
+                    updates["seats"] = new_seats
 
             return state.model_copy(update=updates)
         return state
