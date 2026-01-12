@@ -320,6 +320,10 @@ def is_betting_round_complete(state: GameState) -> bool:
     if state.street in (Street.WAITING, Street.COMPLETE, Street.SHOWDOWN):
         return False
 
+    # If to_act_seat is None, betting is complete (no one needs to act)
+    if state.to_act_seat is None:
+        return True
+
     # Get all active players (not folded, not out)
     active_players = [
         (i, player)
