@@ -188,10 +188,12 @@ def validate_action(
             return False, "BET requires amount"
         if state.current_bet > 0:
             return False, "Cannot bet when there's already a bet (use RAISE)"
-        if amount < state.big_blind:
+        if amount < state.big_blind and amount < player.stack:
+            # Allow all-in even if less than big blind
             return False, f"Bet must be at least big blind ({state.big_blind})"
         if amount > player.stack:
             return False, "Bet amount exceeds stack"
+        # Allow all-in bet (amount == player.stack) even if less than big blind
         return True, ""
 
     if action_type == ActionType.RAISE:
@@ -207,6 +209,7 @@ def validate_action(
         total_raise = amount - call_amount
 
         min_raise = get_min_raise_amount(state)
+        # Allow all-in raise even if it's less than min_raise
         if total_raise < min_raise and amount < player.stack:
             # Not a full raise and not all-in
             return False, f"Raise must be at least {min_raise} above call amount"

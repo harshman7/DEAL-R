@@ -640,15 +640,24 @@ class PokerUI {
         
         if (this.betAmountInput) {
             if (hasBet) {
-                this.betAmountInput.min = minRaiseTotal;
+                // Allow all-in even if less than min raise
+                // Set min to 0 to allow any amount up to stack (validation happens in raise() function)
+                this.betAmountInput.min = 0;
                 this.betAmountInput.max = seat.stack;
-                this.betAmountInput.placeholder = `Raise to (${minRaiseTotal}-${seat.stack})`;
-                this.betAmountInput.value = minRaiseTotal;
+                const canAllIn = seat.stack < minRaiseTotal;
+                this.betAmountInput.placeholder = canAllIn 
+                    ? `Raise to (all-in: ${seat.stack})` 
+                    : `Raise to (${minRaiseTotal}-${seat.stack} or all-in: ${seat.stack})`;
+                this.betAmountInput.value = Math.min(minRaiseTotal, seat.stack);
             } else {
-                this.betAmountInput.min = minBet;
+                // Allow all-in even if less than big blind
+                this.betAmountInput.min = 0;
                 this.betAmountInput.max = seat.stack;
-                this.betAmountInput.placeholder = `Bet (${minBet}-${seat.stack})`;
-                this.betAmountInput.value = minBet;
+                const canAllIn = seat.stack < minBet;
+                this.betAmountInput.placeholder = canAllIn 
+                    ? `Bet (all-in: ${seat.stack})` 
+                    : `Bet (${minBet}-${seat.stack} or all-in: ${seat.stack})`;
+                this.betAmountInput.value = Math.min(minBet, seat.stack);
             }
         }
     }
@@ -877,12 +886,11 @@ class PokerUI {
             console.warn('[UI] Call button clicked but no bet to call - this should be disabled');
             return;
         }
-        if (callAmount > mySeat.stack) {
-            alert('Call amount exceeds your stack');
-            return;
-        }
-        console.log(`[UI] Calling ${callAmount} (current_bet=${this.lastState.current_bet}, committed_street=${mySeat.committed_street})`);
+        // Allow all-in calls (when callAmount > stack, backend will handle it correctly)
+        const actualCallAmount = Math.min(callAmount, mySeat.stack);
+        console.log(`[UI] Calling ${actualCallAmount} (all-in: ${callAmount > mySeat.stack}) (current_bet=${this.lastState.current_bet}, committed_street=${mySeat.committed_street}, stack=${mySeat.stack})`);
         // Call amount is calculated automatically by backend (amount is null for CALL)
+        // Backend will handle all-in calls correctly
         this.act('CALL', null);
     }
     
@@ -894,8 +902,10 @@ class PokerUI {
             return;
         }
         const minBet = this.lastState.big_blind || 100;
-        if (amount < minBet) {
-            alert(`Bet must be at least ${minBet}`);
+        // Allow all-in bet even if less than big blind
+        const isAllIn = amount === mySeat.stack;
+        if (amount < minBet && !isAllIn) {
+            alert(`Bet must be at least ${minBet} (or go all-in with ${mySeat.stack})`);
             return;
         }
         this.act('BET', amount);
@@ -910,8 +920,10 @@ class PokerUI {
         }
         const callAmount = Math.max(0, (this.lastState.current_bet || 0) - (mySeat.committed_street || 0));
         const minRaiseTotal = callAmount + (this.lastState.min_raise || this.lastState.big_blind || 100);
-        if (amount < minRaiseTotal) {
-            alert(`Raise must be at least ${minRaiseTotal}`);
+        // Allow all-in raise even if less than min raise
+        const isAllIn = amount === mySeat.stack;
+        if (amount < minRaiseTotal && !isAllIn) {
+            alert(`Raise must be at least ${minRaiseTotal} (or go all-in with ${mySeat.stack})`);
             return;
         }
         this.act('RAISE', amount);

@@ -88,6 +88,25 @@ def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[
         print(f"[AutoAdvance] Betting round complete, advancing from {current_state.street.value} to {next_street.value}")
         
         if next_street == Street.SHOWDOWN:
+            # Check if we need to deal remaining community cards before showdown
+            # (e.g., if someone went all-in on FLOP, we need TURN and RIVER)
+            if len(current_state.community_cards) < 5 and deck is not None:
+                # Deal remaining cards before showdown
+                print(f"[AutoAdvance] Dealing remaining community cards before showdown (currently {len(current_state.community_cards)} cards)")
+                cards_needed = 5 - len(current_state.community_cards)
+                for _ in range(cards_needed):
+                    card = deck.deal(1)[0]
+                    from engine.domain.events import StreetDealt
+                    from engine.reducer.reducer import apply_event
+                    street_event = StreetDealt(
+                        timestamp=0.0,
+                        street=current_state.street,  # Use current street for the card
+                        cards=[card]
+                    )
+                    current_state = apply_event(current_state, street_event)
+                    events.append(street_event)
+                    print(f"[AutoAdvance] Dealt card: {card}")
+            
             # Go to showdown
             print(f"[AutoAdvance] Going to showdown")
             return _resolve_showdown(current_state, events)
@@ -214,15 +233,24 @@ def _resolve_showdown(
         player_hands = {}
         for seat_id, player in enumerate(current_state.seats):
             if player is not None and player.status != PlayerStatus.FOLDED:
-                if player.hole_cards and len(current_state.community_cards) >= 5:
-                    # Evaluate hand
-                    hand_value = evaluate_hand(player.hole_cards, list(current_state.community_cards))
-                    active_players[seat_id] = player
-                    player_hands[seat_id] = hand_value
-                    print(f"[AutoAdvance] Seat {seat_id} hand: rank={hand_value.rank}, kickers={hand_value.kickers}")
-                elif player.hole_cards:
-                    # Not enough community cards - this shouldn't happen at showdown
-                    print(f"[AutoAdvance] Warning: Seat {seat_id} has hole cards but only {len(current_state.community_cards)} community cards")
+                if player.hole_cards:
+                    # Need at least 5 community cards for proper hand evaluation
+                    if len(current_state.community_cards) >= 5:
+                        # Evaluate hand
+                        hand_value = evaluate_hand(player.hole_cards, list(current_state.community_cards))
+                        active_players[seat_id] = player
+                        player_hands[seat_id] = hand_value
+                        print(f"[AutoAdvance] Seat {seat_id} hand: rank={hand_value.rank}, kickers={hand_value.kickers}")
+                    else:
+                        # Not enough community cards - this shouldn't happen if auto-advance worked correctly
+                        # But handle it gracefully: evaluate with available cards (for edge cases)
+                        print(f"[AutoAdvance] Warning: Seat {seat_id} going to showdown with only {len(current_state.community_cards)} community cards")
+                        # Still evaluate with what we have (though this is unusual)
+                        if len(current_state.community_cards) >= 3:  # At least flop
+                            hand_value = evaluate_hand(player.hole_cards, list(current_state.community_cards))
+                            active_players[seat_id] = player
+                            player_hands[seat_id] = hand_value
+                            print(f"[AutoAdvance] Seat {seat_id} hand (partial): rank={hand_value.rank}, kickers={hand_value.kickers}")
                 else:
                     # No hole cards - shouldn't happen, but handle gracefully
                     print(f"[AutoAdvance] Warning: Seat {seat_id} is active but has no hole cards")
