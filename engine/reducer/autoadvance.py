@@ -150,7 +150,8 @@ def _fast_forward_dealing(
         current_events.append(event)
 
     # After fast-forward, go to showdown
-    return current_state, current_events
+    print(f"[AutoAdvance] Fast-forward complete, resolving showdown")
+    return _resolve_showdown(current_state, current_events)
 
 
 def _advance_to_next_street(
