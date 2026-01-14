@@ -41,6 +41,7 @@ class PokerUI {
         this.callBtn = document.getElementById('callBtn');
         this.betBtn = document.getElementById('betBtn');
         this.raiseBtn = document.getElementById('raiseBtn');
+        this.allInBtn = document.getElementById('allInBtn');
         this.betAmountInput = document.getElementById('betAmount');
         this.actionInfo = document.getElementById('actionInfo');
         this.yourCards = document.getElementById('yourCards');
@@ -90,6 +91,7 @@ class PokerUI {
         if (this.callBtn) this.callBtn.addEventListener('click', () => this.call());
         if (this.betBtn) this.betBtn.addEventListener('click', () => this.bet());
         if (this.raiseBtn) this.raiseBtn.addEventListener('click', () => this.raise());
+        if (this.allInBtn) this.allInBtn.addEventListener('click', () => this.allIn());
         
         // Start hand button is already attached via onclick in HTML
         this.connect();
@@ -603,7 +605,7 @@ class PokerUI {
     }
 
     updateActionButtons(state, seat) {
-        if (!this.actionInfo || !this.foldBtn || !this.checkBtn || !this.callBtn || !this.betBtn || !this.raiseBtn) return;
+        if (!this.actionInfo || !this.foldBtn || !this.checkBtn || !this.callBtn || !this.betBtn || !this.raiseBtn || !this.allInBtn) return;
         
         const callAmount = Math.max(0, (state.current_bet || 0) - (seat.committed_street || 0));
         const minBet = state.big_blind || 100;
@@ -637,6 +639,10 @@ class PokerUI {
         
         // Raise is available when a bet exists (current_bet > 0) and player has stack
         this.raiseBtn.disabled = !hasBet || seat.stack === 0;
+        
+        // All-In is available when player has stack (can all-in bet or raise)
+        this.allInBtn.disabled = seat.stack === 0;
+        this.allInBtn.textContent = `All-In (${seat.stack})`;
         
         if (this.betAmountInput) {
             if (hasBet) {
@@ -927,6 +933,30 @@ class PokerUI {
             return;
         }
         this.act('RAISE', amount);
+    }
+    
+    allIn() {
+        const mySeat = this.lastState?.seats?.find(s => s?.player_id === this.playerId);
+        if (!mySeat || mySeat.stack === 0) {
+            console.error('[UI] Cannot go all-in: no stack');
+            return;
+        }
+        
+        // Set the bet amount input to the player's stack
+        if (this.betAmountInput) {
+            this.betAmountInput.value = mySeat.stack;
+        }
+        
+        // Determine if it's a bet or raise situation
+        const hasBet = this.lastState.current_bet > 0;
+        
+        if (hasBet) {
+            // It's a raise situation
+            this.raise();
+        } else {
+            // It's a bet situation
+            this.bet();
+        }
     }
     
     _getBetAmount() {

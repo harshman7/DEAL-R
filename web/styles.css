@@ -368,6 +368,14 @@ body {
     background: rgba(74, 158, 255, 0.1);
 }
 
+.action-btn.all-in {
+    border-color: #ff6b6b;
+    color: #ff6b6b;
+    background: rgba(255, 107, 107, 0.15);
+    font-weight: 700;
+    border-width: 3px;
+}
+
 .action-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
