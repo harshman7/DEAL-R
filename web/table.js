@@ -795,35 +795,59 @@ class PokerUI {
         const state = this.getCurrentState();
         const mySeat = state?.seats?.find(s => s?.player_id === this.playerId);
         
-        if (mySeat && mySeat.stack !== undefined && mySeat.stack >= 0) {
-            const currentStack = mySeat.stack;
-            console.log(`[UI] Leaving table with stack: ${currentStack} (original when joined: ${this.playerChips})`);
-            
+        // Send stand_up command to server (this will persist chips and clear the seat)
+        if (mySeat && mySeat.seat_id !== undefined && this.ws && this.ws.readyState === WebSocket.OPEN) {
+            console.log(`[UI] Sending stand_up command for seat ${mySeat.seat_id}`);
             try {
-                // Set chips to current stack value (absolute, not relative)
-                // This is a backup - chips should already be updated when hand ends, but update again to be safe
-                const response = await fetch(`${this.baseUrl}/api/v1/players/set-chips?chips=${currentStack}`, {
+                this.sendCommand({
+                    type: 'stand_up',
+                    data: {
+                        seat_id: mySeat.seat_id
+                    },
+                    idempotency_key: `stand-${Date.now()}-${Math.random()}`,
+                    expected_version: this.expectedVersion
+                });
+                
+                // Wait a bit for the command to be processed and chips to be persisted
+                await new Promise(resolve => setTimeout(resolve, 200));
+            } catch (error) {
+                console.error('[UI] Error sending stand_up command:', error);
+                // Fallback: try to update chips directly via API
+                if (mySeat.stack !== undefined && mySeat.stack >= 0) {
+                    try {
+                        const response = await fetch(`${this.baseUrl}/api/v1/players/set-chips?chips=${mySeat.stack}`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${this.token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        if (response.ok) {
+                            console.log(`[UI] Chips updated via API fallback: ${mySeat.stack}`);
+                        }
+                    } catch (apiError) {
+                        console.error('[UI] Error updating chips via API:', apiError);
+                    }
+                }
+            }
+        } else if (mySeat && mySeat.stack !== undefined && mySeat.stack >= 0) {
+            // Fallback: update chips via API if WebSocket is not available
+            console.log(`[UI] WebSocket not available, updating chips via API: ${mySeat.stack}`);
+            try {
+                const response = await fetch(`${this.baseUrl}/api/v1/players/set-chips?chips=${mySeat.stack}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${this.token}`,
                         'Content-Type': 'application/json'
                     }
                 });
-                
                 if (response.ok) {
                     const data = await response.json();
                     console.log(`[UI] Chips updated successfully: ${data.chips}`);
-                } else {
-                    const errorText = await response.text();
-                    console.error('[UI] Failed to update chips:', response.status, errorText);
-                    // Still continue with redirect even if update fails
                 }
             } catch (error) {
                 console.error('[UI] Error updating chips:', error);
-                // Continue with redirect even if update fails
             }
-        } else {
-            console.log('[UI] Could not find seat or invalid stack, skipping chip update (chips may already be updated from hand completion)');
         }
         
         // Close WebSocket connection and redirect to home

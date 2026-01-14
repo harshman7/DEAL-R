@@ -19,6 +19,12 @@ class SitDownRequest(BaseModel):
     player_id: str = Field(description="Unique player identifier")
 
 
+class StandUpRequest(BaseModel):
+    """Request to stand up from a table."""
+
+    seat_id: int = Field(ge=0, le=9, description="Seat number")
+
+
 class ActRequest(BaseModel):
     """Request for a player action."""
 

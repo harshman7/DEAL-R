@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from engine.domain.commands import Act, ActionType, SitDown, StandUp, StartHand
 from engine.domain.state import GameState
-from server.api.schemas import ActRequest, SitDownRequest, StartHandRequest
+from server.api.schemas import ActRequest, SitDownRequest, StandUpRequest, StartHandRequest
 from server.services.table_service import TableService
 
 router = APIRouter()
@@ -365,6 +365,26 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                     seed_commit=request.seed_commit,
                 )
 
+            elif command_type == "stand_up":
+                request = StandUpRequest(**data["data"])
+                print(
+                    f"[WS] Processing stand_up command: seat={request.seat_id}, player={player_id}"
+                )
+                # Get state before processing to capture player stack before seat is cleared
+                prev_state = service.get_state()
+                standing_player_seat = prev_state.seats[request.seat_id] if request.seat_id < len(prev_state.seats) else None
+                standing_player_stack = standing_player_seat.stack if standing_player_seat else None
+                standing_player_id = standing_player_seat.player_id if standing_player_seat else None
+                
+                # Store for use in process_command
+                idempotency_key = data.get("idempotency_key", f"stand-{time.time()}")
+                expected_version = data.get("expected_version", 0)
+                command = StandUp(
+                    idempotency_key=idempotency_key,
+                    timestamp=time.time(),
+                    seat_id=request.seat_id,
+                )
+
             else:
                 await websocket.send_json(
                     {"type": "error", "message": f"Unknown command: {command_type}"}
@@ -421,6 +441,29 @@ async def websocket_endpoint(websocket: WebSocket, table_id: str):
                 # Update cache to avoid unnecessary reloads
                 service.current_state = updated_state
 
+                # Check if player stood up - persist their chips
+                from engine.domain.events import PlayerStoodUp
+                player_stood_up = any(isinstance(e, PlayerStoodUp) for e in events)
+                if player_stood_up and standing_player_id and standing_player_stack is not None:
+                    print(f"[WS] Player stood up, updating chips for {standing_player_id} (seat {request.seat_id}): {standing_player_stack}")
+                    try:
+                        from server.api.auth import load_users_db, save_users_db
+                        users_db = load_users_db()
+                        username = standing_player_id.replace("player_", "")
+                        user = users_db.get(username)
+                        
+                        if user:
+                            old_chips = user.get("chips", 1000)
+                            user["chips"] = standing_player_stack
+                            save_users_db(users_db)
+                            print(f"[WS] Updated chips for {standing_player_id} ({username}) after stand_up: {old_chips} -> {standing_player_stack}")
+                        else:
+                            print(f"[WS] Warning: User {username} not found in database")
+                    except Exception as e:
+                        print(f"[WS] Error updating chips for {standing_player_id} after stand_up: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
                 # Check if hand just ended (HandEnded event in events or street is WAITING with last_hand_results)
                 # If so, update player chips in their accounts
                 from engine.domain.events import HandEnded

@@ -323,9 +323,38 @@ async def spin_roulette(player_id: str = Depends(get_current_player)):
 
     # Update user
     current_chips = user.get("chips", 1000)
-    user["chips"] = current_chips + reward
+    new_chips = current_chips + reward
+    user["chips"] = new_chips
     user["last_roulette_date"] = today
 
     save_users_db(users_db)
 
-    return {"reward": reward, "new_chips": user["chips"], "last_roulette_date": today}
+    # If player is currently seated at a table, sync their stack with new chips
+    try:
+        from server.services.table_manager import get_table_manager
+        manager = get_table_manager()
+        # Check all tables (typically just one table "table-1")
+        for table_id in manager.list_tables():
+            table_service = manager.get_table(table_id)
+            state = table_service.get_state()
+            # Find player's seat
+            for seat in state.seats:
+                if seat is not None and seat.player_id == player_id:
+                    # Update stack to match new chips (add reward to current stack)
+                    old_stack = seat.stack
+                    new_stack = old_stack + reward
+                    # Directly update the seat's stack in the state
+                    # This is a special case for roulette rewards - we bypass the command system
+                    updated_seats = list(state.seats)
+                    seat_idx = seat.seat_id
+                    updated_seats[seat_idx] = seat.model_copy(update={"stack": new_stack})
+                    table_service.current_state = state.model_copy(update={"seats": updated_seats})
+                    print(f"[Roulette] Synced stack for {player_id} at {table_id}: {old_stack} -> {new_stack} (reward: {reward})")
+                    break
+    except Exception as e:
+        # If syncing fails, log but don't fail the roulette spin
+        print(f"[Roulette] Warning: Could not sync stack for seated player {player_id}: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return {"reward": reward, "new_chips": new_chips, "last_roulette_date": today}
