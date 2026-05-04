@@ -57,10 +57,11 @@ class TableService:
                 self.current_state = GameState(num_seats=6)
 
         # SIMPLE: On first load, clear all seated players (server restart cleanup)
-        if not self._cleared_on_startup and self.current_state:
+        if not self._cleared_on_startup and self.current_state is not None:
             self._clear_seated_players()
             self._cleared_on_startup = True
 
+        assert self.current_state is not None
         return self.current_state
 
     def _clear_seated_players(self):
@@ -150,7 +151,6 @@ class TableService:
             expected_version = current_version
 
         # Create deck for commands that need it (StartHand, Act for auto-advance)
-        from engine.domain.types import Deck
         import hashlib
 
         deck = None
@@ -169,9 +169,13 @@ class TableService:
             else:
                 # Recreate same seed from seed_commit (deterministic)
                 seed_int = int(hashlib.sha256(state.seed_commit.encode()).hexdigest(), 16) % (2**31)
-                print(f"[TableService] Recreating deck from seed_commit for hand {self.hand_id}: seed={seed_int}, street={state.street.value}")
+                print(
+                    f"[TableService] Recreating deck from seed_commit for hand {self.hand_id}: seed={seed_int}, street={state.street.value}"
+                )
             deck = Deck.create_shuffled(seed_int)
-            print(f"[TableService] ✓ Deck ready for auto-advance (deck size check: {len(deck.cards) if hasattr(deck, 'cards') else 'N/A'})")
+            print(
+                f"[TableService] ✓ Deck ready for auto-advance (deck size check: {len(deck.cards) if hasattr(deck, 'cards') else 'N/A'})"
+            )
 
         # Process command
         new_state, events = next_state(state, command, deck=deck)
@@ -209,47 +213,53 @@ class TableService:
 
     def _replay_events(self, events: list[DomainEvent]) -> GameState:
         """Replay events to reconstruct state, re-dealing cards deterministically."""
-        from engine.domain.events import HandStarted
-        from engine.domain.types import Deck
         import hashlib
+
+        from engine.domain.events import HandStarted
 
         state = GameState(num_seats=6)
         deck = None  # Will be created when HandStarted event is encountered
-        
+
         for event in events:
             state = apply_event(state, event)
-            
+
             # Re-deal cards deterministically when HandStarted event is encountered
             if isinstance(event, HandStarted) and event.seed_commit:
                 # Create deck from seed_commit (same logic as process_command)
                 seed_int = int(hashlib.sha256(event.seed_commit.encode()).hexdigest(), 16) % (2**31)
                 deck = Deck.create_shuffled(seed_int)
-                print(f"[TableService] Replaying: Created deck from seed_commit for hand {event.hand_id} with seed {seed_int}")
-                
+                print(
+                    f"[TableService] Replaying: Created deck from seed_commit for hand {event.hand_id} with seed {seed_int}"
+                )
+
                 # Re-deal cards to all seated players (they should be ACTIVE after HandStarted)
                 # Use the same logic as _handle_start_hand: get all active seats
-                active_seats = [
-                    i for i, player in enumerate(state.seats)
-                    if player is not None
-                ]
-                
+                active_seats = [i for i, player in enumerate(state.seats) if player is not None]
+
                 if not active_seats:
                     print("[TableService] Replaying: No active players found for re-dealing cards")
                     continue
-                
+
                 updated_seats = list(state.seats)
                 for seat_id in active_seats:
-                    if seat_id < len(updated_seats) and updated_seats[seat_id] is not None:
-                        hole_cards = deck.deal(2)
-                        updated_seats[seat_id] = updated_seats[seat_id].model_copy(
-                            update={"hole_cards": tuple(hole_cards)}
-                        )
-                        print(f"[TableService] Replaying: Re-dealt cards to seat {seat_id} (player_id={updated_seats[seat_id].player_id}): {hole_cards[0]}, {hole_cards[1]}")
-                
+                    if seat_id >= len(updated_seats):
+                        continue
+                    seated = updated_seats[seat_id]
+                    if seated is None:
+                        continue
+                    hole_cards = deck.deal(2)
+                    updated_seats[seat_id] = seated.model_copy(
+                        update={"hole_cards": tuple(hole_cards)}
+                    )
+                    print(
+                        f"[TableService] Replaying: Re-dealt cards to seat {seat_id} (player_id={seated.player_id}): {hole_cards[0]}, {hole_cards[1]}"
+                    )
+
                 state = state.model_copy(update={"seats": updated_seats})
                 print(f"[TableService] Replaying: Re-dealt cards to {len(active_seats)} players")
-        
+
         return state
+
     def _update_command_result(self, idempotency_key: str, events_json: str) -> None:
         """Update command with result events."""
         self.event_store.update_command_result(idempotency_key, events_json)

@@ -81,8 +81,8 @@ class TestAutoAdvance:
         from engine.domain.events import HandEnded
 
         assert any(isinstance(e, HandEnded) for e in events)
-        # Or check state
-        assert state.street == Street.COMPLETE
+        # Table resets between hands once fold-win completes
+        assert state.street == Street.WAITING
 
     def test_betting_round_complete_deals_next_street(self):
         """Test that betting round completion deals next street."""

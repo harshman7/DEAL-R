@@ -153,4 +153,3 @@ The UI is built with:
 - Fetch API for REST calls
 
 Easy to extend and customize!
-

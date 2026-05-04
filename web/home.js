@@ -1,41 +1,33 @@
 // Home page logic
 class HomeUI {
     constructor() {
+        if (redirectToLoginIfUnauthenticated()) {
+            return;
+        }
+
         this.token = localStorage.getItem('auth_token');
         this.playerId = localStorage.getItem('player_id');
         this.username = localStorage.getItem('username');
-        
-        if (!this.token || !this.playerId) {
-            window.location.href = 'login.html';
-            return;
-        }
-        
+
         this.baseUrl = window.location.origin;
         this.initializeElements();
         this.loadPlayerData();
     }
-    
+
     initializeElements() {
         this.playerAvatar = document.getElementById('playerAvatar');
         this.playerName = document.getElementById('playerName');
         this.chipsDisplay = document.getElementById('chipsDisplay');
     }
-    
+
     async loadPlayerData() {
         try {
-            const response = await fetch(`${this.baseUrl}/api/v1/players/me`, {
-                headers: {
-                    'Authorization': `Bearer ${this.token}`
-                }
-            });
-            
-            if (response.status === 401) {
-                // Token expired or invalid, redirect to login
-                console.log('[Home] Token expired, redirecting to login');
-                this.logout();
+            const response = await fetchWithAuth(`${this.baseUrl}/api/v1/players/me`);
+
+            if (response === null) {
                 return;
             }
-            
+
             if (response.ok) {
                 const data = await response.json();
                 this.updateUI(data);
@@ -44,7 +36,7 @@ class HomeUI {
                 this.updateUI({
                     username: this.username || 'Player',
                     chips: 1000,
-                    avatar: '👤'
+                    avatar: '👤',
                 });
             }
         } catch (error) {
@@ -53,11 +45,11 @@ class HomeUI {
             this.updateUI({
                 username: this.username || 'Player',
                 chips: 1000,
-                avatar: '👤'
+                avatar: '👤',
             });
         }
     }
-    
+
     updateUI(data) {
         if (this.playerName) {
             this.playerName.textContent = data.username || this.username || 'Player';
@@ -69,21 +61,18 @@ class HomeUI {
             this.playerAvatar.textContent = data.avatar || '👤';
         }
     }
-    
+
     goToTable() {
         // Redirect to table page
         window.location.href = 'table.html';
     }
-    
+
     goToRoulette() {
         window.location.href = 'roulette.html';
     }
-    
+
     logout() {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('player_id');
-        localStorage.removeItem('username');
-        window.location.href = 'login.html';
+        clearAuthAndGoLogin();
     }
 }
 

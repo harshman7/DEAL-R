@@ -13,7 +13,6 @@ from engine.rules.invariants import (
     check_all_invariants,
     check_chip_conservation,
     check_no_negative_stacks,
-    check_pot_correctness,
 )
 
 
@@ -27,8 +26,6 @@ def valid_game_state(draw):
     num_players = draw(st.integers(min_value=2, max_value=num_seats))
     for i in range(num_players):
         stack = draw(st.integers(min_value=100, max_value=10000))
-        from engine.domain.commands import SitDown
-
         cmd = SitDown(
             idempotency_key=f"sit-{i}",
             timestamp=time.time(),
@@ -116,8 +113,7 @@ class TestInvariants:
     @settings(max_examples=50, deadline=5000)
     def test_no_negative_stacks(self, state: GameState):
         """Property: No player ever has negative stack."""
-        violations = check_all_invariants(state)
-        assert check_no_negative_stacks(state), f"Negative stacks found: {violations}"
+        assert check_no_negative_stacks(state), str(check_all_invariants(state))
 
     @given(valid_game_state())
     @settings(max_examples=50, deadline=5000)
@@ -199,11 +195,10 @@ class TestInvariants:
                 # Invalid action, that's okay
                 break
 
-        # Check pot correctness if at terminal state
+        # If we stopped early (invalid action), still assert full invariant set at terminal
         if current_state.street in (Street.SHOWDOWN, Street.COMPLETE):
-            assert check_pot_correctness(
-                current_state
-            ), "Pot correctness violated at terminal state"
+            violations = check_all_invariants(current_state)
+            assert len(violations) == 0, f"Invariant violations at terminal state: {violations}"
 
 
 class TestDeterministicReplay:

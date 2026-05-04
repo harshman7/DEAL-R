@@ -3,6 +3,7 @@
 import time
 import uuid
 from collections.abc import Callable
+from typing import cast
 
 import structlog
 from fastapi import Request, Response
@@ -54,7 +55,7 @@ async def logging_middleware(request: Request, call_next: Callable) -> Response:
     )
 
     try:
-        response = await call_next(request)
+        response = cast(Response, await call_next(request))
 
         # Log response
         duration = time.time() - start_time

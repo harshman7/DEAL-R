@@ -2,10 +2,13 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Column, Integer, String, Text
-from sqlalchemy.orm import declarative_base
+from sqlalchemy import BigInteger, Integer, String, Text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Declarative base for ORM models."""
 
 
 class EventModel(Base):
@@ -13,13 +16,15 @@ class EventModel(Base):
 
     __tablename__ = "events"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    hand_id = Column(String(255), nullable=False, index=True)
-    version = Column(Integer, nullable=False, index=True)
-    event_type = Column(String(100), nullable=False)
-    event_data = Column(Text, nullable=False)  # JSON serialized event
-    timestamp = Column(BigInteger, nullable=False)  # Unix timestamp
-    created_at = Column(BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp()))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    hand_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_data: Mapped[str] = mapped_column(Text, nullable=False)
+    timestamp: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp())
+    )
 
 
 class HandSnapshotModel(Base):
@@ -27,10 +32,12 @@ class HandSnapshotModel(Base):
 
     __tablename__ = "hand_snapshots"
 
-    hand_id = Column(String(255), primary_key=True)
-    version = Column(Integer, nullable=False)
-    state_data = Column(Text, nullable=False)  # JSON serialized GameState
-    created_at = Column(BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp()))
+    hand_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    state_data: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp())
+    )
 
 
 class CommandModel(Base):
@@ -38,14 +45,16 @@ class CommandModel(Base):
 
     __tablename__ = "commands"
 
-    idempotency_key = Column(String(255), primary_key=True)
-    hand_id = Column(String(255), nullable=False, index=True)
-    command_type = Column(String(100), nullable=False)
-    command_data = Column(Text, nullable=False)  # JSON serialized command
-    result_events = Column(Text, nullable=True)  # JSON serialized events
-    created_at = Column(BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp()))
+    idempotency_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    hand_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    command_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    command_data: Mapped[str] = mapped_column(Text, nullable=False)
+    result_events: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=lambda: int(datetime.now().timestamp())
+    )
 
 
-def init_db(engine):
+def init_db(engine: Engine) -> None:
     """Initialize database tables."""
     Base.metadata.create_all(engine)

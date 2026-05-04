@@ -147,4 +147,3 @@ For real-money, would need:
 5. **TLS/HTTPS** for all communications
 6. **Input sanitization** (additional layer beyond Pydantic)
 7. **Monitoring & alerting** for suspicious activity
-

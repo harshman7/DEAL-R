@@ -9,6 +9,26 @@ from __future__ import annotations
 from engine.domain.state import GameState, PlayerStatus, Street
 from engine.rules.sidepots import build_side_pots, validate_pot_invariant
 
+_POT_VIOLATION = "Pot invariant violated: sum(pots) != sum(committed_total) at terminal state"
+
+
+def _negative_stack_violations(state: GameState) -> list[str]:
+    violations: list[str] = []
+    for seat_id, player in enumerate(state.seats):
+        if player is None:
+            continue
+        if player.stack < 0:
+            violations.append(f"Player at seat {seat_id} has negative stack: {player.stack}")
+        if player.committed_street < 0:
+            violations.append(
+                f"Player at seat {seat_id} has negative committed_street: {player.committed_street}"
+            )
+        if player.committed_total < 0:
+            violations.append(
+                f"Player at seat {seat_id} has negative committed_total: {player.committed_total}"
+            )
+    return violations
+
 
 def check_all_invariants(state: GameState) -> list[str]:
     """Check all invariants and return list of violations.
@@ -19,54 +39,27 @@ def check_all_invariants(state: GameState) -> list[str]:
     Returns:
         List of invariant violation messages (empty if all pass)
     """
-    violations = []
+    violations: list[str] = []
+    violations.extend(_negative_stack_violations(state))
 
-    # Invariant 1: No negative stacks
-    for seat_id, player in enumerate(state.seats):
-        if player is not None:
-            if player.stack < 0:
-                violations.append(f"Player at seat {seat_id} has negative stack: {player.stack}")
-            if player.committed_street < 0:
-                violations.append(
-                    f"Player at seat {seat_id} has negative committed_street: {player.committed_street}"
-                )
-            if player.committed_total < 0:
-                violations.append(
-                    f"Player at seat {seat_id} has negative committed_total: {player.committed_total}"
-                )
+    # Chip conservation (vs initial_total) is checked in property tests via check_chip_conservation.
 
-    # Invariant 2: Chip conservation (table total constant)
-    # Sum of (stack + committed_total) for all players should be constant
-    # (unless rake is taken, which we assume is 0 for now)
-    sum((player.stack + player.committed_total) for player in state.seats if player is not None)
-    # This is checked across state transitions in property tests
+    if state.street in (Street.SHOWDOWN, Street.COMPLETE) and not check_pot_correctness(state):
+        violations.append(_POT_VIOLATION)
 
-    # Invariant 3: Pot correctness at terminal state
-    if state.street in (Street.SHOWDOWN, Street.COMPLETE):
-        pots = build_side_pots(state)
-        if not validate_pot_invariant(state, pots):
-            violations.append(
-                "Pot invariant violated: sum(pots) != sum(committed_total) at terminal state"
-            )
-
-    # Invariant 4: Betting state consistency
     if state.current_bet < 0:
         violations.append(f"current_bet is negative: {state.current_bet}")
     if state.min_raise < 0:
         violations.append(f"min_raise is negative: {state.min_raise}")
 
-    # Invariant 5: Player status consistency
     for seat_id, player in enumerate(state.seats):
         if player is not None:
             if player.stack == 0 and player.status == PlayerStatus.ACTIVE:
-                # Should be ALL_IN if stack is 0 and still in hand
                 if player.committed_total > 0:
                     violations.append(
-                        f"Player at seat {seat_id} has stack=0 but status=ACTIVE (should be ALL_IN)"
+                        f"Player at seat {seat_id} has stack=0 but status=ACTIVE "
+                        "(should be ALL_IN)"
                     )
-
-    # Invariant 6: Street progression consistency
-    # This is more of a state machine check, validated in reducer
 
     return violations
 
@@ -98,11 +91,7 @@ def check_no_negative_stacks(state: GameState) -> bool:
     Returns:
         True if no negative stacks, False otherwise
     """
-    for player in state.seats:
-        if player is not None:
-            if player.stack < 0 or player.committed_street < 0 or player.committed_total < 0:
-                return False
-    return True
+    return not _negative_stack_violations(state)
 
 
 def check_pot_correctness(state: GameState) -> bool:

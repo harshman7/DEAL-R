@@ -8,6 +8,7 @@ emits events. State is derived by applying events in order.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from engine.domain.commands import Act, ActionType, Command, RevealSeed, SitDown, StandUp, StartHand
 from engine.domain.events import (
@@ -26,6 +27,7 @@ from engine.domain.events import (
     StreetDealt,
 )
 from engine.domain.state import GameState, PlayerStatus, Street
+from engine.domain.types import Deck
 from engine.reducer.autoadvance import check_auto_advance
 from engine.rules.legality import (
     calculate_action_amount,
@@ -38,7 +40,7 @@ from engine.rules.legality import (
 
 
 def next_state(
-    state: GameState, command: Command, deck: object | None = None
+    state: GameState, command: Command, deck: Deck | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Process a command and return new state + events.
 
@@ -115,7 +117,7 @@ def _handle_stand_up(
 
 
 def _handle_start_hand(
-    state: GameState, command: StartHand, timestamp: float, deck: object | None = None
+    state: GameState, command: StartHand, timestamp: float, deck: Deck | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle StartHand command."""
     if state.street != Street.WAITING:
@@ -157,7 +159,7 @@ def _handle_start_hand(
     )
 
     new_state = apply_event(state, event)
-    events = [event]
+    events: list[DomainEvent] = [event]
 
     # SIMPLE: Deal hole cards directly to players if deck is provided
     if deck is not None:
@@ -216,7 +218,7 @@ def _handle_reveal_seed(
 
 
 def _handle_act(
-    state: GameState, command: Act, timestamp: float, deck: object | None = None
+    state: GameState, command: Act, timestamp: float, deck: Deck | None = None
 ) -> tuple[GameState, list[DomainEvent]]:
     """Handle Act command with full legality validation."""
     # Validate action
@@ -287,13 +289,17 @@ def _handle_act(
         print(f"[Reducer] No next player to act after action by seat {command.seat_id}")
 
     # Check if betting round is complete
-    events = [event]
+    events: list[DomainEvent] = [event]
     betting_complete = is_betting_round_complete(new_state)
-    print(f"[Reducer] After action: street={new_state.street.value}, betting_complete={betting_complete}, deck={deck is not None}, to_act_seat={new_state.to_act_seat}, next_seat={next_seat}")
-    
+    print(
+        f"[Reducer] After action: street={new_state.street.value}, betting_complete={betting_complete}, deck={deck is not None}, to_act_seat={new_state.to_act_seat}, next_seat={next_seat}"
+    )
+
     if betting_complete:
         events.append(BettingRoundComplete(timestamp=timestamp, street=new_state.street))
-        print(f"[Reducer] Betting round complete for {new_state.street.value}, added BettingRoundComplete event")
+        print(
+            f"[Reducer] Betting round complete for {new_state.street.value}, added BettingRoundComplete event"
+        )
 
     # Auto-advance: check if game should progress automatically
     # Note: We pass the state BEFORE applying BettingRoundComplete, as check_auto_advance checks is_betting_round_complete internally
@@ -304,15 +310,19 @@ def _handle_act(
         from dataclasses import replace
 
         if advance_events:
-            print(f"[Reducer] Auto-advance triggered: {len(advance_events)} events, new street={advance_state.street.value}")
+            print(
+                f"[Reducer] Auto-advance triggered: {len(advance_events)} events, new street={advance_state.street.value}"
+            )
             advance_events = [replace(e, timestamp=timestamp) for e in advance_events]
             new_state = advance_state
             events.extend(advance_events)
         else:
-            print(f"[Reducer] Auto-advance did not trigger (no events)")
+            print("[Reducer] Auto-advance did not trigger (no events)")
     else:
         if betting_complete:
-            print(f"[Reducer] WARNING: Betting round complete but deck is None - cannot auto-advance!")
+            print(
+                "[Reducer] WARNING: Betting round complete but deck is None - cannot auto-advance!"
+            )
 
     return new_state, events
 
@@ -351,10 +361,10 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     elif isinstance(event, HandStarted):
         # Reset player committed amounts
-        updated_seats = []
+        updated_seats_hs: list[PlayerState | None] = []
         for seat in new_seats:
             if seat is not None:
-                updated_seats.append(
+                updated_seats_hs.append(
                     seat.model_copy(
                         update={
                             "committed_street": 0,
@@ -364,7 +374,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                     )
                 )
             else:
-                updated_seats.append(None)
+                updated_seats_hs.append(None)
 
         return state.model_copy(
             update={
@@ -379,7 +389,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                 "last_raiser_seat": None,
                 "pots": [],
                 "community_cards": [],
-                "seats": updated_seats,
+                "seats": updated_seats_hs,
                 "last_hand_results": None,  # Clear previous hand results when starting new hand
             }
         )
@@ -396,8 +406,9 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     elif isinstance(event, BlindPosted):
         seat_idx = event.seat_id
-        if new_seats[seat_idx] is not None:
-            player = new_seats[seat_idx]
+        pl_blind = new_seats[seat_idx]
+        if pl_blind is not None:
+            player = pl_blind
             blind_amount = min(event.amount, player.stack)
             updated_player = player.model_copy(
                 update={
@@ -413,8 +424,9 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     elif isinstance(event, ActionApplied):
         seat_idx = event.seat_id
-        if new_seats[seat_idx] is not None:
-            player = new_seats[seat_idx]
+        apt_player = new_seats[seat_idx]
+        if apt_player is not None:
+            player = apt_player
             new_status = player.status
             if event.action_type == "FOLD":
                 new_status = PlayerStatus.FOLDED
@@ -433,19 +445,23 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
             new_seats[seat_idx] = updated_player
 
             # Update betting state
-            updates = {"seats": new_seats}
+            updates: dict[str, Any] = {"seats": new_seats}
             if event.action_type in ("BET", "RAISE"):
                 new_current_bet = updated_player.committed_street
                 updates["current_bet"] = new_current_bet
                 # min_raise and last_raiser_seat are handled in reducer
-                
+
                 # If this is a bet/raise that reopens betting, reset acted_this_street
                 # for other active players (they need to act again)
                 # Check if this raise reopens betting by comparing to previous state
                 if state.last_raiser_seat != seat_idx:  # This is a new raise
                     # Reset acted_this_street for all other active players who haven't committed enough
                     for i, seat in enumerate(new_seats):
-                        if i != seat_idx and seat is not None and seat.status == PlayerStatus.ACTIVE:
+                        if (
+                            i != seat_idx
+                            and seat is not None
+                            and seat.status == PlayerStatus.ACTIVE
+                        ):
                             # Only reset if they haven't committed enough yet
                             if seat.committed_street < new_current_bet:
                                 new_seats[i] = seat.model_copy(update={"acted_this_street": False})
@@ -456,10 +472,10 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     elif isinstance(event, StreetDealt):
         # Reset acted_this_street and committed_street for active players
-        updated_seats = []
+        updated_seats_sd: list[PlayerState | None] = []
         for seat in new_seats:
             if seat is not None and seat.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN):
-                updated_seats.append(
+                updated_seats_sd.append(
                     seat.model_copy(
                         update={
                             "committed_street": 0,
@@ -468,7 +484,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                     )
                 )
             else:
-                updated_seats.append(seat)
+                updated_seats_sd.append(seat)
 
         # Append new community cards to existing ones (don't replace!)
         # FLOP adds 3 cards, TURN adds 1, RIVER adds 1
@@ -483,7 +499,7 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                 "current_bet": 0,
                 "min_raise": 0,
                 "last_raiser_seat": None,
-                "seats": updated_seats,
+                "seats": updated_seats_sd,
             }
         )
 
@@ -504,38 +520,50 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
 
     elif isinstance(event, ShowdownResolved):
         # Award chips to winners and reset committed amounts
-        updated_seats = []
+        updated_seats_sv: list[PlayerState | None] = []
         for i, seat in enumerate(new_seats):
             if seat is not None:
                 winnings = event.winners.get(i, 0)
                 if winnings > 0:
                     # Award chips and reset committed amounts
-                    updated_seats.append(
-                        seat.model_copy(update={
-                            "stack": seat.stack + winnings,
-                            "committed_total": 0,
-                            "committed_street": 0,
-                        })
+                    updated_seats_sv.append(
+                        seat.model_copy(
+                            update={
+                                "stack": seat.stack + winnings,
+                                "committed_total": 0,
+                                "committed_street": 0,
+                            }
+                        )
                     )
-                    print(f"[Reducer] Awarded {winnings} chips to seat {i} (new stack: {seat.stack + winnings})")
+                    print(
+                        f"[Reducer] Awarded {winnings} chips to seat {i} (new stack: {seat.stack + winnings})"
+                    )
                 else:
                     # Reset committed amounts even if no winnings
-                    updated_seats.append(
-                        seat.model_copy(update={
-                            "committed_total": 0,
-                            "committed_street": 0,
-                        })
+                    updated_seats_sv.append(
+                        seat.model_copy(
+                            update={
+                                "committed_total": 0,
+                                "committed_street": 0,
+                            }
+                        )
                     )
             else:
-                updated_seats.append(seat)
-        
+                updated_seats_sv.append(seat)
+
         # Clear pots after chips have been awarded
         # Store winners in state for results display
-        return state.model_copy(update={"seats": updated_seats, "pots": [], "last_hand_results": event.winners})
+        return state.model_copy(
+            update={
+                "seats": updated_seats_sv,
+                "pots": [],
+                "last_hand_results": event.winners,
+            }
+        )
 
     elif isinstance(event, HandEnded):
         # Reset table state for a new hand
-        updated_seats = []
+        updated_seats_he: list[PlayerState | None] = []
         for seat in new_seats:
             if seat is not None:
                 # Determine new status:
@@ -547,36 +575,40 @@ def apply_event(state: GameState, event: DomainEvent) -> GameState:
                 else:
                     new_status = PlayerStatus.OUT
                     print(f"[Reducer] Seat {seat.seat_id} busted (0 chips), setting status to OUT")
-                
+
                 # Reset player state: clear committed amounts, reset status, clear hole cards
-                updated_seats.append(
-                    seat.model_copy(update={
-                        "committed_total": 0,
-                        "committed_street": 0,
-                        "acted_this_street": False,
-                        "status": new_status,
-                        "hole_cards": None,  # Clear hole cards for security
-                    })
+                updated_seats_he.append(
+                    seat.model_copy(
+                        update={
+                            "committed_total": 0,
+                            "committed_street": 0,
+                            "acted_this_street": False,
+                            "status": new_status,
+                            "hole_cards": None,  # Clear hole cards for security
+                        }
+                    )
                 )
             else:
-                updated_seats.append(seat)
-        
+                updated_seats_he.append(seat)
+
         # Reset all hand-specific state (but preserve last_hand_results for display)
-        print(f"[Reducer] Hand ended: resetting table state for new hand")
-        return state.model_copy(update={
-            "street": Street.WAITING,  # Reset to WAITING so a new hand can start
-            "hand_id": None,
-            "seed_commit": None,
-            "seed_reveal": None,
-            "current_bet": 0,
-            "min_raise": 0,
-            "last_raiser_seat": None,
-            "to_act_seat": None,
-            "community_cards": [],
-            "pots": [],
-            "seats": updated_seats,
-            # Keep last_hand_results for results display - will be cleared on new hand start
-        })
+        print("[Reducer] Hand ended: resetting table state for new hand")
+        return state.model_copy(
+            update={
+                "street": Street.WAITING,  # Reset to WAITING so a new hand can start
+                "hand_id": None,
+                "seed_commit": None,
+                "seed_reveal": None,
+                "current_bet": 0,
+                "min_raise": 0,
+                "last_raiser_seat": None,
+                "to_act_seat": None,
+                "community_cards": [],
+                "pots": [],
+                "seats": updated_seats_he,
+                # Keep last_hand_results for results display - will be cleared on new hand start
+            }
+        )
 
     # Unknown event type - return state unchanged
     return state

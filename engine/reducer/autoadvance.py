@@ -9,13 +9,13 @@ This module handles automatic transitions:
 from __future__ import annotations
 
 from engine.domain.events import DomainEvent, HandEnded, StreetDealt
-from engine.domain.state import GameState, PlayerStatus, Street
-from engine.domain.types import Card
+from engine.domain.state import GameState, PlayerState, PlayerStatus, Street
+from engine.domain.types import Card, Deck
 from engine.rules.legality import is_betting_round_complete
 from engine.rules.sidepots import build_side_pots
 
 
-def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[DomainEvent]]:
+def check_auto_advance(state: GameState, deck: Deck | None) -> tuple[GameState, list[DomainEvent]]:
     """Check if game should auto-advance and return new state + events.
 
     Args:
@@ -25,7 +25,7 @@ def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[
     Returns:
         Tuple of (new_state, events_list)
     """
-    events = []
+    events: list[DomainEvent] = []
     current_state = state
 
     # Check if only one active player (everyone else folded)
@@ -67,8 +67,10 @@ def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[
 
     # Check if betting round is complete
     betting_complete = is_betting_round_complete(current_state)
-    print(f"[AutoAdvance] Checking auto-advance: street={current_state.street.value}, betting_complete={betting_complete}, deck={deck is not None}")
-    
+    print(
+        f"[AutoAdvance] Checking auto-advance: street={current_state.street.value}, betting_complete={betting_complete}, deck={deck is not None}"
+    )
+
     if betting_complete and current_state.street != Street.COMPLETE:
         # Check if everyone is all-in
         all_all_in = all(
@@ -80,35 +82,43 @@ def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[
 
         if all_all_in and current_state.street in (Street.PREFLOP, Street.FLOP, Street.TURN):
             # Fast-forward: deal remaining streets
-            print(f"[AutoAdvance] Fast-forwarding dealing (all-in)")
+            print("[AutoAdvance] Fast-forwarding dealing (all-in)")
+            if deck is None:
+                print("[AutoAdvance] ERROR: Cannot fast-forward — deck is None")
+                return current_state, events
             return _fast_forward_dealing(current_state, deck, events)
 
         # Normal progression: deal next street or go to showdown
         next_street = _get_next_street(current_state.street)
-        print(f"[AutoAdvance] Betting round complete, advancing from {current_state.street.value} to {next_street.value}")
-        
+        print(
+            f"[AutoAdvance] Betting round complete, advancing from {current_state.street.value} to {next_street.value}"
+        )
+
         if next_street == Street.SHOWDOWN:
             # Check if we need to deal remaining community cards before showdown
             # (e.g., if someone went all-in on FLOP, we need TURN and RIVER)
             if len(current_state.community_cards) < 5 and deck is not None:
                 # Deal remaining cards before showdown
-                print(f"[AutoAdvance] Dealing remaining community cards before showdown (currently {len(current_state.community_cards)} cards)")
+                print(
+                    f"[AutoAdvance] Dealing remaining community cards before showdown (currently {len(current_state.community_cards)} cards)"
+                )
                 cards_needed = 5 - len(current_state.community_cards)
                 for _ in range(cards_needed):
                     card = deck.deal(1)[0]
                     from engine.domain.events import StreetDealt
                     from engine.reducer.reducer import apply_event
+
                     street_event = StreetDealt(
                         timestamp=0.0,
                         street=current_state.street,  # Use current street for the card
-                        cards=[card]
+                        cards=(card,),
                     )
                     current_state = apply_event(current_state, street_event)
                     events.append(street_event)
                     print(f"[AutoAdvance] Dealt card: {card}")
-            
+
             # Go to showdown
-            print(f"[AutoAdvance] Going to showdown")
+            print("[AutoAdvance] Going to showdown")
             return _resolve_showdown(current_state, events)
         else:
             # Deal next street
@@ -122,7 +132,7 @@ def check_auto_advance(state: GameState, deck: object) -> tuple[GameState, list[
 
 
 def _fast_forward_dealing(
-    state: GameState, deck: object, events: list[DomainEvent]
+    state: GameState, deck: Deck, events: list[DomainEvent]
 ) -> tuple[GameState, list[DomainEvent]]:
     """Fast-forward dealing remaining streets when everyone is all-in."""
     from engine.reducer.reducer import apply_event
@@ -150,12 +160,12 @@ def _fast_forward_dealing(
         current_events.append(event)
 
     # After fast-forward, go to showdown
-    print(f"[AutoAdvance] Fast-forward complete, resolving showdown")
+    print("[AutoAdvance] Fast-forward complete, resolving showdown")
     return _resolve_showdown(current_state, current_events)
 
 
 def _advance_to_next_street(
-    state: GameState, deck: object, events: list[DomainEvent]
+    state: GameState, deck: Deck, events: list[DomainEvent]
 ) -> tuple[GameState, list[DomainEvent]]:
     """Advance to next street."""
     from engine.reducer.reducer import apply_event
@@ -181,33 +191,52 @@ def _advance_to_next_street(
     # On postflop streets (FLOP, TURN, RIVER), the small blind acts first (or first active player after button)
     # In heads-up (2 players), the button acts first postflop
     active_seats = [
-        i for i, player in enumerate(current_state.seats)
+        i
+        for i, player in enumerate(current_state.seats)
         if player is not None and player.status in (PlayerStatus.ACTIVE, PlayerStatus.ALL_IN)
     ]
-    
+
+    to_act_seat: int | None = None
+
     if len(active_seats) == 2 and current_state.button_seat is not None:
         # Heads-up: button acts first postflop
-        to_act_seat = current_state.button_seat if current_state.button_seat in active_seats else active_seats[0]
+        if current_state.button_seat in active_seats:
+            to_act_seat = current_state.button_seat
+        else:
+            to_act_seat = active_seats[0]
     elif current_state.sb_seat is not None and current_state.sb_seat in active_seats:
         # Multi-way: small blind acts first postflop
         to_act_seat = current_state.sb_seat
     else:
         # Fallback: first active player after button
         if current_state.button_seat is not None:
-            button_idx = active_seats.index(current_state.button_seat) if current_state.button_seat in active_seats else -1
-            to_act_seat = active_seats[(button_idx + 1) % len(active_seats)] if active_seats else None
+            button_idx = (
+                active_seats.index(current_state.button_seat)
+                if current_state.button_seat in active_seats
+                else -1
+            )
+            if button_idx >= 0 and active_seats:
+                to_act_seat = active_seats[(button_idx + 1) % len(active_seats)]
+            else:
+                to_act_seat = None
         else:
             to_act_seat = active_seats[0] if active_seats else None
-    
+
     if to_act_seat is not None:
         current_state = current_state.model_copy(update={"to_act_seat": to_act_seat})
         print(f"[AutoAdvance] Set to_act_seat to {to_act_seat} after dealing {next_street.value}")
     else:
         # Use next_player_to_act as fallback
-        next_seat = next_player_to_act(current_state.model_copy(update={"to_act_seat": active_seats[0] if active_seats else None}))
+        next_seat = next_player_to_act(
+            current_state.model_copy(
+                update={"to_act_seat": active_seats[0] if active_seats else None}
+            )
+        )
         if next_seat is not None:
             current_state = current_state.model_copy(update={"to_act_seat": next_seat})
-            print(f"[AutoAdvance] Set to_act_seat to {next_seat} using next_player_to_act after dealing {next_street.value}")
+            print(
+                f"[AutoAdvance] Set to_act_seat to {next_seat} using next_player_to_act after dealing {next_street.value}"
+            )
 
     return current_state, current_events
 
@@ -217,7 +246,7 @@ def _resolve_showdown(
 ) -> tuple[GameState, list[DomainEvent]]:
     """Resolve showdown by evaluating hands and splitting pots."""
     from engine.domain.events import ShowdownResolved
-    from engine.eval.evaluator import evaluate_hand, HandValue
+    from engine.eval.evaluator import HandValue, evaluate_hand
     from engine.reducer.reducer import apply_event
 
     current_state = state
@@ -227,31 +256,41 @@ def _resolve_showdown(
     pots = build_side_pots(current_state)
     if not pots:
         print("[AutoAdvance] No pots to distribute in showdown")
-        winners = {}
+        winners: dict[int, int] = {}
     else:
         # Get active players with their hole cards
-        active_players = {}
-        player_hands = {}
+        active_players: dict[int, PlayerState] = {}
+        player_hands: dict[int, HandValue] = {}
         for seat_id, player in enumerate(current_state.seats):
             if player is not None and player.status != PlayerStatus.FOLDED:
                 if player.hole_cards:
                     # Need at least 5 community cards for proper hand evaluation
                     if len(current_state.community_cards) >= 5:
                         # Evaluate hand
-                        hand_value = evaluate_hand(player.hole_cards, list(current_state.community_cards))
+                        hand_value = evaluate_hand(
+                            player.hole_cards, list(current_state.community_cards)
+                        )
                         active_players[seat_id] = player
                         player_hands[seat_id] = hand_value
-                        print(f"[AutoAdvance] Seat {seat_id} hand: rank={hand_value.rank}, kickers={hand_value.kickers}")
+                        print(
+                            f"[AutoAdvance] Seat {seat_id} hand: rank={hand_value.rank}, kickers={hand_value.kickers}"
+                        )
                     else:
                         # Not enough community cards - this shouldn't happen if auto-advance worked correctly
                         # But handle it gracefully: evaluate with available cards (for edge cases)
-                        print(f"[AutoAdvance] Warning: Seat {seat_id} going to showdown with only {len(current_state.community_cards)} community cards")
+                        print(
+                            f"[AutoAdvance] Warning: Seat {seat_id} going to showdown with only {len(current_state.community_cards)} community cards"
+                        )
                         # Still evaluate with what we have (though this is unusual)
                         if len(current_state.community_cards) >= 3:  # At least flop
-                            hand_value = evaluate_hand(player.hole_cards, list(current_state.community_cards))
+                            hand_value = evaluate_hand(
+                                player.hole_cards, list(current_state.community_cards)
+                            )
                             active_players[seat_id] = player
                             player_hands[seat_id] = hand_value
-                            print(f"[AutoAdvance] Seat {seat_id} hand (partial): rank={hand_value.rank}, kickers={hand_value.kickers}")
+                            print(
+                                f"[AutoAdvance] Seat {seat_id} hand (partial): rank={hand_value.rank}, kickers={hand_value.kickers}"
+                            )
                 else:
                     # No hole cards - shouldn't happen, but handle gracefully
                     print(f"[AutoAdvance] Warning: Seat {seat_id} is active but has no hole cards")
@@ -269,31 +308,33 @@ def _resolve_showdown(
                     for seat_id, hand_value in player_hands.items()
                     if seat_id in pot.eligible_seats
                 }
-                
+
                 if not eligible_hands:
                     print(f"[AutoAdvance] No eligible players for pot of {pot.amount}")
                     continue
-                
+
                 # Find best hand value
                 best_hand: HandValue | None = None
-                best_seats = []
+                best_seats: list[int] = []
                 for seat_id, hand_value in eligible_hands.items():
                     if best_hand is None or hand_value > best_hand:
                         best_hand = hand_value
                         best_seats = [seat_id]
                     elif hand_value == best_hand:
                         best_seats.append(seat_id)
-                
+
                 # Split pot among winners (if multiple ties)
                 amount_per_winner = pot.amount // len(best_seats)
                 remainder = pot.amount % len(best_seats)
-                
+
                 for i, seat_id in enumerate(best_seats):
                     amount = amount_per_winner
                     if i < remainder:
                         amount += 1
                     winners[seat_id] = winners.get(seat_id, 0) + amount
-                    print(f"[AutoAdvance] Pot of {pot.amount} split: Seat {seat_id} wins {amount} (best hand among eligible)")
+                    print(
+                        f"[AutoAdvance] Pot of {pot.amount} split: Seat {seat_id} wins {amount} (best hand among eligible)"
+                    )
 
     # Create showdown event
     event = ShowdownResolved(
@@ -328,7 +369,7 @@ def _get_next_street(current_street: Street) -> Street:
     return street_sequence.get(current_street, Street.SHOWDOWN)
 
 
-def _deal_street_cards(deck: object, street: Street) -> tuple[Card, ...]:
+def _deal_street_cards(deck: Deck, street: Street) -> tuple[Card, ...]:
     """Deal cards for a street."""
     if street == Street.FLOP:
         return tuple(deck.deal(3))

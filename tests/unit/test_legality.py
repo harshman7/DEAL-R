@@ -279,7 +279,13 @@ class TestBettingRoundCompletion:
         )
         state.seats[0] = player0
         state.seats[1] = player1
-        state = state.model_copy(update={"current_bet": 0, "street": Street.FLOP})
+        state = state.model_copy(
+            update={
+                "current_bet": 0,
+                "street": Street.FLOP,
+                "to_act_seat": 0,
+            }
+        )
 
         assert not is_betting_round_complete(state)
 

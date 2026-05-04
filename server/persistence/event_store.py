@@ -1,6 +1,7 @@
 """Event store with optimistic concurrency control."""
 
 import json
+from typing import Any, cast
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
@@ -257,9 +258,9 @@ class EventStore:
 
     def _serialize_event(self, event: DomainEvent) -> str:
         """Serialize event to JSON."""
-        from engine.domain.types import Card
         from engine.domain.state import Street
-        
+        from engine.domain.types import Card
+
         # Simple serialization - in production, use proper event serialization
         data = {
             "type": type(event).__name__,
@@ -270,25 +271,33 @@ class EventStore:
             if field_name != "timestamp":
                 # Handle Card objects (single or in tuple/list)
                 if isinstance(field_value, Card):
-                    data[field_name] = {"rank": field_value.rank.value, "suit": field_value.suit.value}
-                elif isinstance(field_value, (tuple, list)):
+                    data[field_name] = {
+                        "rank": field_value.rank.value,
+                        "suit": field_value.suit.value,
+                    }
+                elif isinstance(field_value, tuple | list):
                     # Check if it's a tuple/list of Card objects (e.g., StreetDealt.cards)
                     if field_value and isinstance(field_value[0], Card):
                         data[field_name] = [
-                            {"rank": card.rank.value, "suit": card.suit.value} for card in field_value
+                            {"rank": card.rank.value, "suit": card.suit.value}
+                            for card in field_value
                         ]
                     else:
                         # Regular tuple/list - convert to list
-                        data[field_name] = list(field_value) if isinstance(field_value, tuple) else field_value
+                        data[field_name] = (
+                            list(field_value) if isinstance(field_value, tuple) else field_value
+                        )
                 elif isinstance(field_value, Street):
                     # Street enum
                     data[field_name] = field_value.value
                 elif hasattr(field_value, "value") and hasattr(field_value, "__class__"):
                     # Other enums (Rank, Suit, etc.)
                     data[field_name] = field_value.value
-                elif isinstance(field_value, (set, frozenset)):
+                elif isinstance(field_value, set | frozenset):
                     data[field_name] = list(field_value)
-                elif hasattr(field_value, "__dict__") and not isinstance(field_value, (str, int, float, bool, type(None))):
+                elif hasattr(field_value, "__dict__") and not isinstance(
+                    field_value, str | int | float | bool | type(None)
+                ):
                     # Complex objects - convert to string as fallback
                     data[field_name] = str(field_value)
                 else:
@@ -339,7 +348,7 @@ class EventStore:
             raise ValueError(f"Unknown event type: {event_type}")
 
         # Reconstruct event (simplified - assumes all fields are in data)
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         for k, v in data.items():
             if k == "type":
                 continue
@@ -362,6 +371,7 @@ class EventStore:
             elif k == "cards" and isinstance(v, list):
                 # Deserialize Card objects from JSON
                 from engine.domain.types import Card, Rank, Suit
+
                 cards = []
                 for card_data in v:
                     if isinstance(card_data, dict) and "rank" in card_data and "suit" in card_data:
@@ -371,4 +381,4 @@ class EventStore:
             else:
                 kwargs[k] = v
 
-        return event_class(**kwargs)
+        return cast(DomainEvent, event_class(**kwargs))

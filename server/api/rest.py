@@ -1,5 +1,7 @@
 """REST API endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from server.api.schemas import ErrorResponse, TableSnapshotResponse
@@ -54,7 +56,7 @@ async def get_table_snapshot(
     state = service.get_state()
 
     # Convert to response format
-    seats_data = []
+    seats_data: list[dict[str, Any] | None] = []
     for seat in state.seats:
         if seat is None:
             seats_data.append(None)
@@ -228,8 +230,10 @@ async def update_player_chips(
     user["chips"] = new_chips
 
     save_users_db(users_db)
-    
-    print(f"[API] Updated chips for {player_id} ({username}): {current_chips} + {amount} = {new_chips}")
+
+    print(
+        f"[API] Updated chips for {player_id} ({username}): {current_chips} + {amount} = {new_chips}"
+    )
 
     return {"player_id": player_id, "chips": new_chips}
 
@@ -256,7 +260,7 @@ async def set_player_chips(
     old_chips = user.get("chips", 1000)
     user["chips"] = chips
     save_users_db(users_db)
-    
+
     print(f"[API] Set chips for {player_id} ({username}): {old_chips} -> {chips}")
 
     return {"player_id": player_id, "chips": chips}
@@ -331,7 +335,6 @@ async def spin_roulette(player_id: str = Depends(get_current_player)):
 
     # If player is currently seated at a table, sync their stack with new chips
     try:
-        from server.services.table_manager import get_table_manager
         manager = get_table_manager()
         # Check all tables (typically just one table "table-1")
         for table_id in manager.list_tables():
@@ -349,12 +352,15 @@ async def spin_roulette(player_id: str = Depends(get_current_player)):
                     seat_idx = seat.seat_id
                     updated_seats[seat_idx] = seat.model_copy(update={"stack": new_stack})
                     table_service.current_state = state.model_copy(update={"seats": updated_seats})
-                    print(f"[Roulette] Synced stack for {player_id} at {table_id}: {old_stack} -> {new_stack} (reward: {reward})")
+                    print(
+                        f"[Roulette] Synced stack for {player_id} at {table_id}: {old_stack} -> {new_stack} (reward: {reward})"
+                    )
                     break
     except Exception as e:
         # If syncing fails, log but don't fail the roulette spin
         print(f"[Roulette] Warning: Could not sync stack for seated player {player_id}: {e}")
         import traceback
+
         traceback.print_exc()
 
     return {"reward": reward, "new_chips": new_chips, "last_roulette_date": today}

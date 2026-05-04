@@ -123,4 +123,3 @@ At all times, the following invariants must hold:
 2. Chip conservation: `sum(stack + committed_total)` constant
 3. Pot correctness: At terminal state, `sum(pots) == sum(committed_total)`
 4. Player status consistency: `stack == 0` → `status == ALL_IN` (if in hand)
-

@@ -2,9 +2,10 @@
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import HTTPBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from server.services.auth import (
@@ -26,7 +27,7 @@ def load_users_db() -> dict[str, dict]:
     if USERS_DB_FILE.exists():
         try:
             with open(USERS_DB_FILE) as f:
-                return json.load(f)
+                return cast(dict[str, dict[str, Any]], json.load(f))
         except Exception as e:
             print(f"[Auth] Error loading users database: {e}")
             return {}
@@ -163,9 +164,9 @@ async def login(request: LoginRequest):
 
 
 @router.get("/me")
-async def get_current_user(token: str = Depends(security)):
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Get current authenticated user."""
-    payload = decode_access_token(token.credentials)
+    payload = decode_access_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 

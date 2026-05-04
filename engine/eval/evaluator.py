@@ -62,7 +62,7 @@ def evaluate_hand(hole_cards: tuple[Card, Card], board: list[Card]) -> HandValue
         raise ValueError(f"Expected 7 cards, got {len(all_cards)}")
 
     # Try all possible 5-card combinations
-    best_hand = None
+    best_hand: HandValue | None = None
     for i in range(7):
         for j in range(i + 1, 7):
             five_cards = [all_cards[k] for k in range(7) if k != i and k != j]
@@ -70,6 +70,7 @@ def evaluate_hand(hole_cards: tuple[Card, Card], board: list[Card]) -> HandValue
             if best_hand is None or hand_value > best_hand:
                 best_hand = hand_value
 
+    assert best_hand is not None  # Exhaustive iteration over combos
     return best_hand
 
 
@@ -160,7 +161,7 @@ def rank_hands(players: dict[int, tuple[Card, Card]], board: list[Card]) -> dict
     Returns:
         Dict mapping seat_id -> HandValue
     """
-    rankings = {}
+    rankings: dict[int, HandValue] = {}
     for seat_id, hole_cards in players.items():
         rankings[seat_id] = evaluate_hand(hole_cards, board)
     return rankings
@@ -176,7 +177,7 @@ def split_pot(pots: list, player_rankings: dict[int, HandValue]) -> dict[int, in
     Returns:
         Dict mapping seat_id -> amount won
     """
-    winners = {}
+    winners: dict[int, int] = {}
     for pot in pots:
         # Find best hand among eligible players
         eligible_rankings = {

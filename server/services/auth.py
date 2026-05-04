@@ -1,6 +1,7 @@
 """JWT-based authentication service."""
 
 from datetime import datetime, timedelta
+from typing import Any, cast
 
 import bcrypt
 from jose import JWTError, jwt
@@ -72,7 +73,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expire = datetime.utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes)
     to_encode.update({"exp": expire, "iat": datetime.utcnow()})
     encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
-    return encoded_jwt
+    return str(encoded_jwt)
 
 
 def decode_access_token(token: str) -> dict | None:
@@ -86,7 +87,7 @@ def decode_access_token(token: str) -> dict | None:
     """
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-        return payload
+        return cast(dict[str, Any], payload)
     except JWTError as e:
         print(f"[Auth] JWT decode error: {e}")
         return None
@@ -109,7 +110,7 @@ def get_player_id(token: str | None = None) -> str:
 
     payload = decode_access_token(token)
     if payload and "sub" in payload:
-        return payload["sub"]  # "sub" is standard JWT claim for subject/user ID
+        return str(payload["sub"])  # "sub" is standard JWT claim for subject/user ID
 
     return "anonymous"
 

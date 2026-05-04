@@ -88,4 +88,3 @@ Command → Reducer → Events → EventStore → State (replay)
 
 - Event Sourcing pattern: https://martinfowler.com/eaaDev/EventSourcing.html
 - Domain-Driven Design: Event Sourcing chapter
-

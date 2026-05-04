@@ -1,6 +1,10 @@
 """Pydantic schemas for API requests and responses."""
 
+from typing import Annotated, Any
+
 from pydantic import BaseModel, Field
+
+SeatIndex = Annotated[int, Field(ge=0, le=9, description="Seat number")]
 
 
 class ErrorResponse(BaseModel):
@@ -14,7 +18,7 @@ class ErrorResponse(BaseModel):
 class SitDownRequest(BaseModel):
     """Request to sit down at a table."""
 
-    seat_id: int = Field(ge=0, le=9, description="Seat number")
+    seat_id: SeatIndex
     stack: int = Field(gt=0, description="Starting chip stack")
     player_id: str = Field(description="Unique player identifier")
 
@@ -22,13 +26,13 @@ class SitDownRequest(BaseModel):
 class StandUpRequest(BaseModel):
     """Request to stand up from a table."""
 
-    seat_id: int = Field(ge=0, le=9, description="Seat number")
+    seat_id: SeatIndex
 
 
 class ActRequest(BaseModel):
     """Request for a player action."""
 
-    seat_id: int = Field(ge=0, le=9, description="Seat number")
+    seat_id: SeatIndex
     action_type: str = Field(description="Action type: FOLD, CHECK, CALL, BET, RAISE")
     amount: int | None = Field(default=None, ge=0, description="Amount for BET/RAISE")
     idempotency_key: str = Field(description="Unique command identifier")
@@ -49,7 +53,7 @@ class TableSnapshotResponse(BaseModel):
 
     hand_id: str | None = None
     street: str
-    seats: list[dict]
+    seats: list[dict[str, Any] | None]
     current_bet: int
     community_cards: list[dict]
     pots: list[dict]

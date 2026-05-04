@@ -155,4 +155,3 @@ The final state is **guaranteed identical** across replays.
 - **ORM**: SQLAlchemy 2.0
 - **Validation**: Pydantic v2
 - **Testing**: pytest + Hypothesis
-

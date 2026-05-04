@@ -303,7 +303,11 @@ def next_player_to_act(state: GameState) -> SeatId | None:
             # 1. There's a bet (current_bet > 0)
             # 2. Their committed_street < current_bet
             # 3. They have chips remaining (stack > 0)
-            elif state.current_bet > 0 and player.committed_street < state.current_bet and player.stack > 0:
+            elif (
+                state.current_bet > 0
+                and player.committed_street < state.current_bet
+                and player.stack > 0
+            ):
                 return current_seat
 
         # Move to next seat (wrap around)
@@ -356,7 +360,11 @@ def is_betting_round_complete(state: GameState) -> bool:
             if not player.acted_this_street:
                 return False
             # Active player has acted but needs to act again (raise reopened betting)
-            if state.current_bet > 0 and player.committed_street < state.current_bet and player.stack > 0:
+            if (
+                state.current_bet > 0
+                and player.committed_street < state.current_bet
+                and player.stack > 0
+            ):
                 return False
 
     # Check if all active players are at the same commitment level
